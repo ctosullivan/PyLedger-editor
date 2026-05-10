@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+vendor/pyledger/.git/
+*.journal.bak
+*.ledger.bak

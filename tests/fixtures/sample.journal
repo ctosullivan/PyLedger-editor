@@ -1,0 +1,10 @@
+; Sample journal for ledger-editor tests.
+; Two simple transactions covering common field combinations.
+
+2024-01-10 * Opening balances
+    assets:bank:checking    £1000.00
+    equity:opening-balances
+
+2024-01-15 Groceries
+    expenses:food    £42.50
+    assets:bank:checking

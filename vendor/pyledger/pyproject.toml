@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyLedger"
+version = "0.5.0"
+description = "A Python implementation of the hledger plain-text accounting tool"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+PyLedger = "PyLedger.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["PyLedger*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
