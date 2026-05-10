@@ -11,7 +11,7 @@
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+A` | 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared |
+| `Ctrl+R` | 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared |
 
 ## Panel Focus Cycling
 
@@ -24,12 +24,7 @@
 
 | Shortcut | Action |
 |----------|--------|
-| `Alt+Shift+Up` | Extend selection from cursor up to the start (header line) of the current transaction block |
-| `Alt+Shift+Down` | Extend selection from cursor down to the end (last posting) of the current transaction block |
-
-To select an entire block from a mid-block cursor: press `Alt+Shift+Up` then `Alt+Shift+Down` (or vice versa).
-
-Note: `Ctrl+Shift+Up/Down` is intercepted by Windows Terminal for terminal scrolling — use `Alt+Shift+Up/Down` instead.
+| `Ctrl+T` | Select the entire current transaction block (header line through last posting), regardless of cursor position within the block |
 
 ## Text Navigation (custom bindings)
 
@@ -38,8 +33,6 @@ Note: `Ctrl+Shift+Up/Down` is intercepted by Windows Terminal for terminal scrol
 | `Ctrl+Home` | Move cursor to start of file |
 | `Ctrl+End` | Move cursor to end of file |
 | `Ctrl+A` | Select all text in the editor |
-| `Ctrl+Shift+Home` | Extend selection from cursor to start of file |
-| `Ctrl+Shift+End` | Extend selection from cursor to end of file |
 
 ## Cursor / Text Navigation (TextArea built-in)
 
@@ -72,7 +65,6 @@ natively — arrow keys, `Home`/`End`, `Ctrl+←/→` (word jump), `PgUp`/`PgDn`
 | Shortcut | Conflict | Notes |
 |----------|----------|-------|
 | `Ctrl+C` | SIGINT (many terminals) | May need remapping in terminal settings |
-| `Ctrl+Shift+Up/Down` | Windows Terminal terminal scrolling | Use `Alt+Shift+Up/Down` for block selection instead |
 | `Ctrl+K` | Some terminal emulators use for clear-line | Documented; handle gracefully |
 
 See [knowledge_base/design_decisions.md](../knowledge_base/design_decisions.md)

@@ -1,17 +1,13 @@
 ## Current Task
 
-UAT Batch 3 fixes complete. All 97 tests passing. Ready for re-UAT or Milestone 3.
+UAT Batch 4 fixes complete. All 96 tests passing. Ready for re-UAT.
 
 ## Where We Are
 
-97/97 pytest passing. Six UAT Round 2 issues resolved:
-1. Command palette caret fixed — `COMMAND_PALETTE_DISPLAY = "Ctrl+P"` on LedgerApp.
-2. Toggle-cleared rebound: Ctrl+Shift+A (was Ctrl+Shift+C — Textual collision).
-3. Block selection rebound: Alt+Shift+Up/Down (was Ctrl+Shift+Up/Down — Windows Terminal intercepts those).
-4. Ctrl+Home/End added — moves cursor to start/end of file.
-5. Ctrl+A overrides TextArea default (which was cursor_line_start) — now selects all.
-6. Ctrl+Shift+Home/End added — selects from cursor to file start/end.
-7. Tab focus cycle fixed — priority=True Tab/Shift+Tab bindings on BalanceSidebar and RegisterPanel; cycle is TextArea → Tree → DataTable → TextArea.
+96/96 pytest passing. Three UAT Round 3 issues resolved:
+1. Toggle cleared rebound: Ctrl+R (was Ctrl+Shift+A — still not working in UAT).
+2. Transaction block selection rebound: Ctrl+T selects entire block (was Alt+Shift+Up/Down — still not working in UAT). Single action: selects header through last posting regardless of cursor position.
+3. Ctrl+Shift+Home/End: removed from scope (bindings and action methods deleted).
 
 Launch: `.\run_uat.ps1` or `.venv\Scripts\python.exe -m ledger_editor <file>`
 
@@ -25,14 +21,15 @@ None.
 - src/ledger_editor/widgets/transaction_table.py — all JournalEditor bindings; _find_transaction_block; block-select + nav actions
 - src/ledger_editor/widgets/balance_sidebar.py — priority Tab/Shift+Tab focus bindings
 - src/ledger_editor/widgets/register_panel.py — priority Tab/Shift+Tab focus bindings
-- tests/test_transaction_table.py — 27 tests (9 pure, 13 async)
+- tests/test_transaction_table.py — 96 tests (9 pure, 12 async)
 - docs/shortcuts.md — full updated keybinding reference
 
 ## What NOT To Revisit
 
 - Transaction status model: uses `cleared: bool` and `pending: bool` (NOT `flag: str`)
-- Shift+C and Ctrl+Shift+C bindings are GONE — toggle cleared is now Ctrl+Shift+A
-- Ctrl+Shift+Up/Down for block selection is GONE — use Alt+Shift+Up/Down (terminal conflict)
+- Ctrl+Shift+C and Ctrl+Shift+A bindings are GONE — toggle cleared is now Ctrl+R
+- Ctrl+Shift+Up/Down and Alt+Shift+Up/Down for block selection are GONE — use Ctrl+T
+- Ctrl+Shift+Home/End are GONE — removed from scope
 - Ctrl+S: writes via `Path.write_text(journal_to_text(...))` NOT `EditorDocument.save()`
 - `run_basic_checks` is at `PyLedger.checks.run_basic_checks` (not top-level export)
 - `journal_to_text()` does NOT preserve comments/directives — known v0.5.0 limitation

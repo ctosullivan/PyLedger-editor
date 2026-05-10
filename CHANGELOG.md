@@ -13,6 +13,17 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: UAT Round 3 — Ctrl+Shift+A still not working, rebind to Ctrl+R (reconcile);
+  Alt+Shift+Up/Down still not working, replace with single Ctrl+T (select transaction
+  block); Ctrl+Shift+Home/End out of scope, remove.
+- Claude: Changed toggle-cleared binding `ctrl+shift+a` → `ctrl+r` (key_display "Ctrl+R").
+  Removed `alt+shift+up/down` directional block-select bindings and replaced with
+  single `ctrl+t` → `action_select_transaction_block` (selects header through last
+  posting regardless of cursor position within block). Removed `ctrl+shift+home` and
+  `ctrl+shift+end` bindings and their action methods entirely. Replaced the two
+  directional async tests with a single `test_select_transaction_block` test.
+  Updated `docs/shortcuts.md`. Suite: 96/96.
+
 - Human: Fix UAT Round 2 issues: keep command palette but show "Ctrl+P" not caret;
   change Ctrl+Shift+C → Ctrl+Shift+A (collision); fix block selection keys
   Ctrl+Shift+Up/Down → Alt+Shift+Up/Down (Windows Terminal interception); add

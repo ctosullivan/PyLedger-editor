@@ -140,7 +140,7 @@ class TestJournalEditorWidget:
         assert received, "SaveCompleted was not posted"
 
     async def test_toggle_cleared_on_header_line(self) -> None:
-        """Ctrl+Shift+A on a header line cycles the flag character."""
+        """Ctrl+R on a header line cycles the flag character."""
         app = LedgerApp(FIXTURES / "sample.journal")
         async with app.run_test(size=(120, 30)) as pilot:
             editor = pilot.app.query_one(JournalEditor)
@@ -159,7 +159,7 @@ class TestJournalEditorWidget:
             assert "!" in new_line
 
     async def test_toggle_cleared_on_posting_line(self) -> None:
-        """Ctrl+Shift+A on a posting line leaves the text unchanged."""
+        """Ctrl+R on a posting line leaves the text unchanged."""
         app = LedgerApp(FIXTURES / "sample.journal")
         async with app.run_test(size=(120, 30)) as pilot:
             editor = pilot.app.query_one(JournalEditor)
@@ -202,8 +202,8 @@ class TestJournalEditorWidget:
 
             assert editor._current_account is None
 
-    async def test_select_to_block_end(self, tmp_path: Path) -> None:
-        """Ctrl+Shift+Down from the header selects to the last posting line."""
+    async def test_select_transaction_block(self, tmp_path: Path) -> None:
+        """Ctrl+T from any line in a block selects header through last posting."""
         journal = tmp_path / "block.journal"
         journal.write_text(
             "2024-01-15 Groceries\n"
@@ -220,39 +220,13 @@ class TestJournalEditorWidget:
             editor = pilot.app.query_one(JournalEditor)
             textarea = editor.query_one("#journal_textarea", TextArea)
 
-            textarea.move_cursor((0, 0))
-            editor.action_select_to_block_end()
+            textarea.move_cursor((1, 5))  # mid-posting of first transaction
+            editor.action_select_transaction_block()
             await pilot.pause()
 
             sel = textarea.selection
-            assert sel.start == (0, 0)
-            assert sel.end[0] == 2  # last posting of the first transaction
-
-    async def test_select_to_block_start(self, tmp_path: Path) -> None:
-        """Ctrl+Shift+Up from a posting line selects back to the header."""
-        journal = tmp_path / "block.journal"
-        journal.write_text(
-            "2024-01-15 Groceries\n"
-            "    expenses:food    £42.50\n"
-            "    assets:bank:checking\n"
-            "\n"
-            "2024-01-10 * Opening balances\n"
-            "    assets:bank:checking    £1000.00\n"
-            "    equity:opening-balances\n",
-            encoding="utf-8",
-        )
-        app = LedgerApp(journal)
-        async with app.run_test(size=(120, 30)) as pilot:
-            editor = pilot.app.query_one(JournalEditor)
-            textarea = editor.query_one("#journal_textarea", TextArea)
-
-            textarea.move_cursor((1, 0))  # first posting line
-            editor.action_select_to_block_start()
-            await pilot.pause()
-
-            sel = textarea.selection
-            assert sel.start == (0, 0)  # header line
-            assert sel.end == (1, 0)    # cursor stayed at posting line
+            assert sel.start == (0, 0)  # header line, column 0
+            assert sel.end[0] == 2      # last posting of first transaction
 
 
 # ---------------------------------------------------------------------------

@@ -126,21 +126,15 @@ class JournalEditor(Widget):
 
     BINDINGS = [
         Binding("ctrl+s", "save", "Save", key_display="Ctrl+S"),
-        Binding("ctrl+shift+a", "toggle_cleared", "Toggle cleared", key_display="Ctrl+Shift+A"),
+        Binding("ctrl+r", "toggle_cleared", "Toggle cleared", key_display="Ctrl+R"),
         Binding("escape", "blur_editor", "Unfocus"),
-        Binding("alt+shift+up", "select_to_block_start", "Select to block start",
-                show=False, priority=True),
-        Binding("alt+shift+down", "select_to_block_end", "Select to block end",
+        Binding("ctrl+t", "select_transaction_block", "Select transaction",
                 show=False, priority=True),
         Binding("ctrl+home", "cursor_to_start", "Start of file",
                 show=False, priority=True),
         Binding("ctrl+end", "cursor_to_end", "End of file",
                 show=False, priority=True),
         Binding("ctrl+a", "select_all", "Select all",
-                show=False, priority=True),
-        Binding("ctrl+shift+home", "select_to_start", "Select to file start",
-                show=False, priority=True),
-        Binding("ctrl+shift+end", "select_to_end", "Select to file end",
                 show=False, priority=True),
     ]
 
@@ -254,30 +248,18 @@ class JournalEditor(Widget):
         self.post_message(self.SaveCompleted())
         self.app.notify("Saved", severity="information")
 
-    def action_select_to_block_start(self) -> None:
-        """Extend selection from the cursor up to the start of the transaction block."""
+    def action_select_transaction_block(self) -> None:
+        """Select the entire transaction block containing the cursor (Ctrl+T)."""
         from textual.document._document import Selection  # noqa: PLC0415
 
         textarea = self.query_one("#journal_textarea", TextArea)
-        row, col = textarea.cursor_location
+        row, _ = textarea.cursor_location
         lines = textarea.text.splitlines()
         if not lines:
             return
-        start_row, _ = _find_transaction_block(lines, row)
-        textarea.selection = Selection((start_row, 0), (row, col))
-
-    def action_select_to_block_end(self) -> None:
-        """Extend selection from the cursor down to the end of the transaction block."""
-        from textual.document._document import Selection  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", TextArea)
-        row, col = textarea.cursor_location
-        lines = textarea.text.splitlines()
-        if not lines:
-            return
-        _, end_row = _find_transaction_block(lines, row)
+        start_row, end_row = _find_transaction_block(lines, row)
         end_col = len(lines[end_row]) if end_row < len(lines) else 0
-        textarea.selection = Selection((row, col), (end_row, end_col))
+        textarea.selection = Selection((start_row, 0), (end_row, end_col))
 
     def action_cursor_to_start(self) -> None:
         """Move cursor to the very start of the file (Ctrl+Home)."""
@@ -302,21 +284,3 @@ class JournalEditor(Widget):
         last_row = len(lines) - 1
         textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
 
-    def action_select_to_start(self) -> None:
-        """Extend selection from cursor to the very start of the file (Ctrl+Shift+Home)."""
-        from textual.document._document import Selection  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", TextArea)
-        row, col = textarea.cursor_location
-        textarea.selection = Selection((0, 0), (row, col))
-
-    def action_select_to_end(self) -> None:
-        """Extend selection from cursor to the very end of the file (Ctrl+Shift+End)."""
-        from textual.document._document import Selection  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", TextArea)
-        row, col = textarea.cursor_location
-        lines = textarea.text.splitlines()
-        last_row = max(0, len(lines) - 1)
-        last_col = len(lines[last_row]) if lines else 0
-        textarea.selection = Selection((row, col), (last_row, last_col))
