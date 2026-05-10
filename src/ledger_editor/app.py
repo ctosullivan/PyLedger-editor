@@ -54,10 +54,10 @@ class LedgerApp(App[None]):
         layout: horizontal;
     }
     JournalEditor {
-        width: 80;
+        width: 65%;
     }
     #right_panel {
-        width: 1fr;
+        width: 35%;
         min-width: 40;
         border-left: solid $primary;
     }

@@ -1,6 +1,6 @@
 ## Current Task
 
-UAT Batch 4 fixes complete. All 96 tests passing. Ready for re-UAT.
+Layout and register UX polish complete (v0.4.0). All 96 tests passing.
 
 ## Where We Are
 

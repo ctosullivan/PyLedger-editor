@@ -73,8 +73,8 @@ class TestRegisterPanelWidget:
 
             assert panel.query_one("#register_table", DataTable).row_count > 0
 
-    async def test_show_account_limits_to_10_rows(self) -> None:
-        """RegisterPanel shows at most 10 rows even when more exist."""
+    async def test_show_account_loads_all_rows(self) -> None:
+        """RegisterPanel shows all rows, not capped at 10."""
         app = LedgerApp(FIXTURES / "large.journal")
         async with app.run_test(size=(120, 40)) as pilot:
             panel = pilot.app.query_one(RegisterPanel)
@@ -82,7 +82,7 @@ class TestRegisterPanelWidget:
             await pilot.pause(0.5)
             await pilot.pause()
 
-            assert panel.query_one("#register_table", DataTable).row_count <= 10
+            assert panel.query_one("#register_table", DataTable).row_count > 10
 
     async def test_show_none_clears_table(self) -> None:
         """show_account(None) empties the DataTable and resets _current_account."""

@@ -1,4 +1,4 @@
-"""Register panel: shows the 10 most recent postings for the active account.
+"""Register panel: shows all postings for the active account, scrolled to bottom.
 
 The active account is set by calling show_account(), which is invoked by the
 app in response to JournalEditor.CursorAccountChanged and
@@ -37,7 +37,7 @@ def _fmt_register_amount(amount: object) -> str:
 
 
 class RegisterPanel(Widget):
-    """DataTable showing the 10 most recent postings for the active account.
+    """DataTable showing all postings for the active account, scrolled to bottom.
 
     Call show_account(account) to change the displayed account. Refreshes
     asynchronously; stale results from a previous account are discarded.
@@ -116,8 +116,7 @@ class RegisterPanel(Widget):
 
         journal = PyLedger.load(self.journal_path)
         rows = journal.register(query=PyLedger.Query(account=account))
-        last_10 = rows[-10:]
-        self.app.call_from_thread(self._render_rows, last_10, account)
+        self.app.call_from_thread(self._render_rows, rows, account)
 
     def _render_rows(self, rows: list, for_account: str) -> None:
         """Rebuild the DataTable on the main thread.
@@ -136,6 +135,7 @@ class RegisterPanel(Widget):
                 _fmt_register_amount(row.amount),
                 str(row.running_balance),
             )
+        table.scroll_end(animate=False)
 
     def action_focus_next_panel(self) -> None:
         """Move focus forward: RegisterPanel → JournalEditor TextArea."""

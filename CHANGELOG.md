@@ -13,6 +13,16 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Widen text editor panel to 65% of screen width; make register panel
+  scrollable with most recent transaction visible at bottom.
+- Claude: Changed `JournalEditor` CSS width from `80%` → `65%` and `#right_panel`
+  from `20%` → `35%`. Removed the `rows[-10:]` cap in `_load_register` so all
+  postings are loaded. Added `table.scroll_end(animate=False)` at the end of
+  `_render_rows` to pin the view to the most recent row on load. Updated module
+  and class docstrings. Updated `test_show_account_limits_to_10_rows` →
+  `test_show_account_loads_all_rows` (asserts `row_count > 10`). Suite: 96/96.
+  Version bumped to 0.4.0.
+
 - Human: UAT Round 3 — Ctrl+Shift+A still not working, rebind to Ctrl+R (reconcile);
   Alt+Shift+Up/Down still not working, replace with single Ctrl+T (select transaction
   block); Ctrl+Shift+Home/End out of scope, remove.
