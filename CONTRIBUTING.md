@@ -7,8 +7,22 @@ python -m venv .venv
 .venv\Scripts\activate       # Windows
 # source .venv/bin/activate  # macOS / Linux
 pip install --upgrade pip
-pip install textual==8.2.5 "pyledger==0.5" pytest pytest-asyncio
+pip install textual==8.2.5 pytest pytest-asyncio
+
+# Install PyLedger from the vendor snapshot (editable so imports resolve correctly).
+# The PyPI 'pyledger' package is a stub — always use the vendor version.
+pip install -e vendor/pyledger/
 ```
+
+> **Windows note**: the vendor checkout may place the source package in a directory
+> named `pyLedger` (lowercase 'py') due to Windows filesystem case-folding. If you
+> get `ModuleNotFoundError: No module named 'PyLedger'` after install, rename it:
+>
+> ```powershell
+> Rename-Item vendor\pyledger\pyLedger PyLedger_tmp
+> Rename-Item vendor\pyledger\PyLedger_tmp PyLedger
+> pip install -e vendor/pyledger/
+> ```
 
 Run the test suite:
 

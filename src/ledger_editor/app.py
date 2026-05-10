@@ -10,6 +10,12 @@ import argparse
 import sys
 from pathlib import Path
 
+# Ensure vendor/pyledger is on sys.path so 'import PyLedger' resolves to
+# vendor/pyledger/pyLedger/ on Windows (case-insensitive filesystem).
+_VENDOR = Path(__file__).parent.parent.parent.parent / "vendor" / "pyledger"
+if _VENDOR.exists() and str(_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_VENDOR))
+
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header
 
