@@ -1,7 +1,9 @@
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 .pytest_cache/
-vendor/pyledger/.git/
+vendor/
 *.journal.bak
 *.ledger.bak
+personal.journal
