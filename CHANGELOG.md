@@ -13,6 +13,36 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Fix UAT Round 2 issues: keep command palette but show "Ctrl+P" not caret;
+  change Ctrl+Shift+C → Ctrl+Shift+A (collision); fix block selection keys
+  Ctrl+Shift+Up/Down → Alt+Shift+Up/Down (Windows Terminal interception); add
+  Ctrl+Home/End, Ctrl+A (select all), Ctrl+Shift+Home/End; fix Tab focus cycle
+  to include RegisterPanel's DataTable.
+- Claude: Set `COMMAND_PALETTE_DISPLAY = "Ctrl+P"` on `LedgerApp` (keeps palette,
+  fixes footer display). Renamed toggle-cleared binding `ctrl+shift+c` →
+  `ctrl+shift+a`. Changed block-select bindings from `ctrl+shift+up/down` to
+  `alt+shift+up/down` (avoid Windows Terminal interception). Added five new
+  `priority=True` bindings to `JournalEditor`: `ctrl+home/end` (cursor to
+  file start/end), `ctrl+a` (select all, overrides TextArea's line-start default),
+  `ctrl+shift+home/end` (select to file start/end). Added `BINDINGS` with
+  `priority=True` Tab/Shift+Tab to `BalanceSidebar` and `RegisterPanel` to fix
+  Tab focus cycle (TextArea → Tree → DataTable → TextArea). Added 3 async tests
+  (`TestNavigationActions`); full suite 97/97.
+
+- Human: Fix UAT-reported issues: Ctrl+Shift+F close popup; change Shift+C to
+  Ctrl+Shift+C; fix footer caret symbols; widen right panel to 80 chars; add
+  Ctrl+Shift+Up/Down transaction block selection.
+- Claude: Added `priority=True` and `key_display="Ctrl+Shift+F"` to the App's
+  filter binding (fixes close-when-focused). Changed `JournalEditor.BINDINGS`
+  from bare tuples to `Binding` objects with `key_display` so the footer renders
+  "Ctrl+S" / "Ctrl+Shift+C" instead of caret symbols; renamed `shift+c` binding
+  to `ctrl+shift+c`. Widened `#right_panel` from 48 to 80 chars. Added
+  `_find_transaction_block(lines, row)` pure helper and two new directional
+  actions: `action_select_to_block_start` (`Ctrl+Shift+Up`, selects cursor→header)
+  and `action_select_to_block_end` (`Ctrl+Shift+Down`, selects cursor→last posting),
+  both with `priority=True` to override TextArea defaults. Added 7 tests (5 pure
+  `TestFindTransactionBlock`, 2 async block-select); full suite 94/94.
+
 - Human: Replace DataTable editor with a text editor (like eMacs Ledger Mode);
   move balance sidebar to the right; add a register panel.
 - Claude: Replaced `TransactionTable` (DataTable) with `JournalEditor` (TextArea)

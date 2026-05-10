@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import ClassVar
 
 # Ensure vendor/pyledger is on sys.path so 'import PyLedger' resolves to
 # vendor/pyledger/pyLedger/ on Windows (case-insensitive filesystem).
@@ -18,6 +19,7 @@ if _VENDOR.exists() and str(_VENDOR) not in sys.path:
     sys.path.insert(0, str(_VENDOR))
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Footer, Header
 
@@ -43,27 +45,28 @@ class LedgerApp(App[None]):
     """
 
     TITLE = "Ledger Editor"
+    COMMAND_PALETTE_DISPLAY: ClassVar[str] = "Ctrl+P"
     BINDINGS = [
-        ("ctrl+shift+f", "toggle_filter", "Filter"),
+        Binding("ctrl+shift+f", "toggle_filter", "Filter", priority=True, key_display="Ctrl+Shift+F"),
     ]
     CSS = """
     Screen {
         layout: horizontal;
     }
     JournalEditor {
-        width: 1fr;
+        width: 80;
     }
     #right_panel {
-        width: 48;
-        min-width: 30;
+        width: 1fr;
+        min-width: 40;
         border-left: solid $primary;
     }
     BalanceSidebar {
-        height: 2fr;
+        height: 1fr;
         border-bottom: solid $primary;
     }
     RegisterPanel {
-        height: 14;
+        height: 1fr;
     }
     """
 

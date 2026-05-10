@@ -35,11 +35,15 @@ Milestones track the editor's development phases. A milestone is only marked
 - [ ] `Ctrl+D` autofill: duplicate once to bottom, date → today
 - [ ] `Alt+P` / `Alt+N`: previous/next matching transaction template
 
-## Milestone 3 — Filter Popup & Search
+## Milestone 3 — True Filter Popup
 
-- [ ] `FilterPopup` widget: date range, account glob, payee, amount range
+The current `FilterPopup` (opened with `Ctrl+Shift+F`) is a UI stub only.
+`apply_filter()` is unimplemented. A true filter needs:
+
+- [ ] Read criteria from Input fields (date from/to, account glob, payee substring)
 - [ ] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
-- [ ] Live filter applied to TransactionTable without closing popup
+- [ ] Call `PyLedger.load().register(query=Query(...))` with assembled criteria
+- [ ] Display filtered results (dedicated results panel or filtered view)
 - [ ] Forward / reverse search (`Ctrl+F` / `Ctrl+R`)
 
 ## Milestone 4 — Polish & Robustness

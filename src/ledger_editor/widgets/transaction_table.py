@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import TextArea
@@ -86,6 +87,32 @@ def _account_at_cursor(textarea: TextArea) -> str | None:
     return _extract_account_from_line(lines[row])
 
 
+# Purpose: locate the start and end rows of the hledger transaction block
+#   containing the given row. A block begins at the first non-indented,
+#   non-blank line at or above `row` (the header) and ends at the last
+#   consecutive indented line below the header (the postings).
+# Returns: (start_row, end_row) — both are valid indices into `lines`.
+# Edge cases: blank lines between postings are treated as block terminators;
+#   a row with no header above it returns (0, end_row); an empty list
+#   returns (0, 0); `row` is clamped to [0, len(lines)-1].
+def _find_transaction_block(lines: list[str], row: int) -> tuple[int, int]:
+    """Return (start_row, end_row) of the transaction block containing row."""
+    if not lines:
+        return (0, 0)
+    row = max(0, min(row, len(lines) - 1))
+    start = row
+    while start > 0 and (not lines[start] or lines[start][0].isspace()):
+        start -= 1
+    end = start
+    total = len(lines)
+    while end + 1 < total:
+        next_line = lines[end + 1]
+        if not next_line or not next_line[0].isspace():
+            break
+        end += 1
+    return (start, end)
+
+
 class JournalEditor(Widget):
     """Full-text editor for hledger journal files.
 
@@ -98,9 +125,23 @@ class JournalEditor(Widget):
     """
 
     BINDINGS = [
-        ("ctrl+s", "save", "Save"),
-        ("shift+c", "toggle_cleared", "Toggle cleared"),
-        ("escape", "blur_editor", "Unfocus"),
+        Binding("ctrl+s", "save", "Save", key_display="Ctrl+S"),
+        Binding("ctrl+shift+a", "toggle_cleared", "Toggle cleared", key_display="Ctrl+Shift+A"),
+        Binding("escape", "blur_editor", "Unfocus"),
+        Binding("alt+shift+up", "select_to_block_start", "Select to block start",
+                show=False, priority=True),
+        Binding("alt+shift+down", "select_to_block_end", "Select to block end",
+                show=False, priority=True),
+        Binding("ctrl+home", "cursor_to_start", "Start of file",
+                show=False, priority=True),
+        Binding("ctrl+end", "cursor_to_end", "End of file",
+                show=False, priority=True),
+        Binding("ctrl+a", "select_all", "Select all",
+                show=False, priority=True),
+        Binding("ctrl+shift+home", "select_to_start", "Select to file start",
+                show=False, priority=True),
+        Binding("ctrl+shift+end", "select_to_end", "Select to file end",
+                show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -212,3 +253,70 @@ class JournalEditor(Widget):
 
         self.post_message(self.SaveCompleted())
         self.app.notify("Saved", severity="information")
+
+    def action_select_to_block_start(self) -> None:
+        """Extend selection from the cursor up to the start of the transaction block."""
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", TextArea)
+        row, col = textarea.cursor_location
+        lines = textarea.text.splitlines()
+        if not lines:
+            return
+        start_row, _ = _find_transaction_block(lines, row)
+        textarea.selection = Selection((start_row, 0), (row, col))
+
+    def action_select_to_block_end(self) -> None:
+        """Extend selection from the cursor down to the end of the transaction block."""
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", TextArea)
+        row, col = textarea.cursor_location
+        lines = textarea.text.splitlines()
+        if not lines:
+            return
+        _, end_row = _find_transaction_block(lines, row)
+        end_col = len(lines[end_row]) if end_row < len(lines) else 0
+        textarea.selection = Selection((row, col), (end_row, end_col))
+
+    def action_cursor_to_start(self) -> None:
+        """Move cursor to the very start of the file (Ctrl+Home)."""
+        self.query_one("#journal_textarea", TextArea).move_cursor((0, 0))
+
+    def action_cursor_to_end(self) -> None:
+        """Move cursor to the very end of the file (Ctrl+End)."""
+        textarea = self.query_one("#journal_textarea", TextArea)
+        lines = textarea.text.splitlines()
+        last_row = max(0, len(lines) - 1)
+        last_col = len(lines[last_row]) if lines else 0
+        textarea.move_cursor((last_row, last_col))
+
+    def action_select_all(self) -> None:
+        """Select all text in the editor (Ctrl+A)."""
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", TextArea)
+        lines = textarea.text.splitlines()
+        if not lines:
+            return
+        last_row = len(lines) - 1
+        textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
+
+    def action_select_to_start(self) -> None:
+        """Extend selection from cursor to the very start of the file (Ctrl+Shift+Home)."""
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", TextArea)
+        row, col = textarea.cursor_location
+        textarea.selection = Selection((0, 0), (row, col))
+
+    def action_select_to_end(self) -> None:
+        """Extend selection from cursor to the very end of the file (Ctrl+Shift+End)."""
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", TextArea)
+        row, col = textarea.cursor_location
+        lines = textarea.text.splitlines()
+        last_row = max(0, len(lines) - 1)
+        last_col = len(lines[last_row]) if lines else 0
+        textarea.selection = Selection((row, col), (last_row, last_col))

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from textual import work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import DataTable, Label
 
@@ -55,9 +56,14 @@ class RegisterPanel(Widget):
         color: $text-muted;
     }
     RegisterPanel > DataTable {
-        height: 12;
+        height: 1fr;
     }
     """
+
+    BINDINGS = [
+        Binding("tab", "focus_next_panel", "Focus editor", show=False, priority=True),
+        Binding("shift+tab", "focus_prev_panel", "Focus balance", show=False, priority=True),
+    ]
 
     def __init__(self, journal_path: Path) -> None:
         """Initialise with the resolved absolute journal file path.
@@ -130,3 +136,16 @@ class RegisterPanel(Widget):
                 _fmt_register_amount(row.amount),
                 str(row.running_balance),
             )
+
+    def action_focus_next_panel(self) -> None:
+        """Move focus forward: RegisterPanel → JournalEditor TextArea."""
+        from textual.widgets import TextArea  # noqa: PLC0415
+
+        self.app.query_one("#journal_textarea", TextArea).focus()
+
+    def action_focus_prev_panel(self) -> None:
+        """Move focus backward: RegisterPanel → BalanceSidebar Tree."""
+        from ledger_editor.widgets.balance_sidebar import BalanceSidebar  # noqa: PLC0415
+        from textual.widgets import Tree  # noqa: PLC0415
+
+        self.app.query_one(BalanceSidebar).query_one(Tree).focus()

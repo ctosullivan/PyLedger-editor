@@ -12,9 +12,10 @@ from pathlib import Path
 
 from textual import work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Tree
+from textual.widgets import TextArea, Tree
 
 __all__ = ["BalanceSidebar"]
 
@@ -52,6 +53,11 @@ class BalanceSidebar(Widget):
         padding: 0 1;
     }
     """
+
+    BINDINGS = [
+        Binding("tab", "focus_next_panel", "Focus register", show=False, priority=True),
+        Binding("shift+tab", "focus_prev_panel", "Focus editor", show=False, priority=True),
+    ]
 
     class AccountSelected(Message):
         """Posted when the user selects an account node in the balance tree."""
@@ -126,3 +132,14 @@ class BalanceSidebar(Widget):
             node = parent.add(label, data=row.account)  # type: ignore[union-attr]
             node.expand()
             node_map[row.account] = node
+
+    def action_focus_next_panel(self) -> None:
+        """Move focus forward: BalanceSidebar → RegisterPanel DataTable."""
+        from ledger_editor.widgets.register_panel import RegisterPanel  # noqa: PLC0415
+        from textual.widgets import DataTable
+
+        self.app.query_one(RegisterPanel).query_one(DataTable).focus()
+
+    def action_focus_prev_panel(self) -> None:
+        """Move focus backward: BalanceSidebar → JournalEditor TextArea."""
+        self.app.query_one("#journal_textarea", TextArea).focus()
