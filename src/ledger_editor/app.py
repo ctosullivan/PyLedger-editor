@@ -1,7 +1,8 @@
 """Root Textual application for the ledger editor.
 
-Composes the main layout: BalanceSidebar (persistent left panel) and
-TransactionTable (central editing surface). FilterPopup overlays on demand.
+Composes the main layout: JournalEditor (text editing surface, left) and a
+right panel containing BalanceSidebar (top) and RegisterPanel (bottom).
+FilterPopup overlays on demand via Ctrl+Shift+F.
 """
 
 from __future__ import annotations
@@ -17,12 +18,14 @@ if _VENDOR.exists() and str(_VENDOR) not in sys.path:
     sys.path.insert(0, str(_VENDOR))
 
 from textual.app import App, ComposeResult
+from textual.containers import Vertical
 from textual.widgets import Footer, Header
 
 from ledger_editor.utils.file_resolver import resolve_journal_file
 from ledger_editor.widgets.balance_sidebar import BalanceSidebar
 from ledger_editor.widgets.filter_popup import FilterPopup
-from ledger_editor.widgets.transaction_table import TransactionTable
+from ledger_editor.widgets.register_panel import RegisterPanel
+from ledger_editor.widgets.transaction_table import JournalEditor
 
 __all__ = ["LedgerApp", "main"]
 
@@ -47,13 +50,20 @@ class LedgerApp(App[None]):
     Screen {
         layout: horizontal;
     }
-    BalanceSidebar {
-        width: 30;
-        min-width: 20;
-        border-right: solid $primary;
-    }
-    TransactionTable {
+    JournalEditor {
         width: 1fr;
+    }
+    #right_panel {
+        width: 48;
+        min-width: 30;
+        border-left: solid $primary;
+    }
+    BalanceSidebar {
+        height: 2fr;
+        border-bottom: solid $primary;
+    }
+    RegisterPanel {
+        height: 14;
     }
     """
 
@@ -69,13 +79,31 @@ class LedgerApp(App[None]):
     def compose(self) -> ComposeResult:
         """Build the initial widget tree."""
         yield Header()
-        yield BalanceSidebar(self.journal_path)
-        yield TransactionTable(self.journal_path)
+        yield JournalEditor(self.journal_path)
+        with Vertical(id="right_panel"):
+            yield BalanceSidebar(self.journal_path)
+            yield RegisterPanel(self.journal_path)
         yield Footer()
 
-    def on_transaction_table_save_completed(self) -> None:
+    def on_journal_editor_save_completed(self) -> None:
         """Refresh account balances whenever the journal is saved."""
         self.query_one(BalanceSidebar).refresh_balances()
+
+    def on_journal_editor_cursor_account_changed(
+        self, event: JournalEditor.CursorAccountChanged
+    ) -> None:
+        """Update the register panel when the cursor moves to a new account."""
+        results = self.query(RegisterPanel)
+        if results:
+            results.first().show_account(event.account)
+
+    def on_balance_sidebar_account_selected(
+        self, event: BalanceSidebar.AccountSelected
+    ) -> None:
+        """Update the register panel when the user selects an account in the sidebar."""
+        results = self.query(RegisterPanel)
+        if results:
+            results.first().show_account(event.account)
 
     def action_toggle_filter(self) -> None:
         """Open or close the transaction filter popup (Ctrl+Shift+F)."""

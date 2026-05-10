@@ -52,3 +52,34 @@ class TestBalanceSidebarWidget:
             from textual.widgets import Tree
 
             assert sidebar.query_one(Tree) is not None
+
+    async def test_node_selected_posts_account_selected(self) -> None:
+        """Selecting a tree node posts AccountSelected with the account path."""
+        app = LedgerApp(FIXTURES / "sample.journal")
+        async with app.run_test(size=(120, 30)) as pilot:
+            sidebar = pilot.app.query_one(BalanceSidebar)
+            await pilot.pause(0.5)
+            await pilot.pause()
+
+            received: list[BalanceSidebar.AccountSelected] = []
+            _orig = sidebar.post_message
+
+            def _spy(msg: object) -> bool:
+                if isinstance(msg, BalanceSidebar.AccountSelected):
+                    received.append(msg)
+                return _orig(msg)  # type: ignore[arg-type]
+
+            sidebar.post_message = _spy  # type: ignore[method-assign]
+
+            from textual.widgets import Tree
+
+            tree = sidebar.query_one(Tree)
+            first_node = next(iter(tree.root.children), None)
+            assert first_node is not None, "Tree has no nodes after balance fetch"
+
+            # Simulate node selection
+            sidebar.on_tree_node_selected(Tree.NodeSelected(first_node))
+            await pilot.pause()
+
+        assert received, "AccountSelected was not posted"
+        assert received[0].account is not None

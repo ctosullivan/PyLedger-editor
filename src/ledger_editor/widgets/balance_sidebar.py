@@ -1,7 +1,8 @@
 """Persistent sidebar widget displaying account balances.
 
 Fetches balances via journal.balance(tree=True) on app start and after every
-Ctrl+S save. Renders as a scrollable Tree with one node per account.
+Ctrl+S save. Renders as a scrollable Tree with one node per account. Selecting
+a node posts AccountSelected so the register panel can update.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from textual import work
 from textual.app import ComposeResult
+from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Tree
 
@@ -28,11 +30,14 @@ def _fmt_amounts(amounts: dict[str, Decimal]) -> str:
 
 
 class BalanceSidebar(Widget):
-    """Scrollable account-balance tree displayed on the left of the editor.
+    """Scrollable account-balance tree displayed on the right panel of the editor.
 
     Refreshes asynchronously via a thread worker so the editing surface
     remains responsive during PyLedger I/O. Call refresh_balances() to
     trigger a reload; it is also called automatically on mount.
+
+    Selecting a tree node posts AccountSelected so downstream widgets (e.g.
+    RegisterPanel) can update to show that account's register.
 
     Args:
         journal_path: Absolute path to the journal file being edited.
@@ -44,8 +49,16 @@ class BalanceSidebar(Widget):
     }
     BalanceSidebar > Tree {
         height: 1fr;
+        padding: 0 1;
     }
     """
+
+    class AccountSelected(Message):
+        """Posted when the user selects an account node in the balance tree."""
+
+        def __init__(self, account: str | None) -> None:
+            super().__init__()
+            self.account = account
 
     def __init__(self, journal_path: Path) -> None:
         """Initialise with the resolved absolute journal file path.
@@ -58,13 +71,17 @@ class BalanceSidebar(Widget):
 
     def compose(self) -> ComposeResult:
         """Render an empty Tree that refresh_balances() populates."""
-        tree: Tree[None] = Tree("Balances")
+        tree: Tree[str | None] = Tree("Balances")
         tree.root.expand()
         yield tree
 
     def on_mount(self) -> None:
         """Trigger an initial balance fetch when the widget first appears."""
         self.refresh_balances()
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Post AccountSelected with the full account path of the clicked node."""
+        self.post_message(self.AccountSelected(event.node.data))
 
     @work(thread=True)
     def refresh_balances(self) -> None:
@@ -84,7 +101,8 @@ class BalanceSidebar(Widget):
 
         Must be called on the main thread (use call_from_thread from workers).
         Each BalanceRow's depth drives the Tree indentation; only the leaf
-        account segment is shown as the label to avoid path repetition.
+        account segment is shown as the label to avoid path repetition. The
+        full account path is stored as node data for AccountSelected messages.
         """
         tree = self.query_one(Tree)
         tree.root.remove_children()
@@ -105,6 +123,6 @@ class BalanceSidebar(Widget):
                 parent_key = ":".join(parts[:-1])
                 parent = node_map.get(parent_key, tree.root)
 
-            node = parent.add(label)  # type: ignore[union-attr]
+            node = parent.add(label, data=row.account)  # type: ignore[union-attr]
             node.expand()
             node_map[row.account] = node

@@ -20,7 +20,14 @@
 |----------|--------|
 | `Shift+C` | 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared |
 
-## Emacs Ledger-Mode Conventions
+## Cursor / Text Navigation (TextArea built-in)
+
+The editor surface is a full TextArea. All standard cursor movement is available
+natively — arrow keys, `Home`/`End`, `Ctrl+←/→` (word jump), `PgUp`/`PgDn`,
+`Shift+` any of the above to select. These are NOT custom bindings; they are
+provided by the Textual TextArea widget and cannot conflict with app bindings.
+
+## Emacs Ledger-Mode Conventions (Milestone 3 — pending)
 
 | Shortcut | Action |
 |----------|--------|
@@ -29,14 +36,6 @@
 | `Shift+Down` | Decrement date by one day |
 | `Shift+Alt+Up` | Increment date by one month |
 | `Shift+Alt+Down` | Decrement date by one month |
-| `Ctrl+→` | Skip to next field (date → payee → account → amount) |
-| `Ctrl+←` | Skip to previous field |
-| `Ctrl+↑` | Move to previous transaction block |
-| `Ctrl+↓` | Move to next transaction block |
-| `Ctrl+Shift+→` | Select to end of current field |
-| `Ctrl+Shift+←` | Select to start of current field |
-| `Ctrl+Shift+↑` | Select entire transaction block above |
-| `Ctrl+Shift+↓` | Select entire transaction block below |
 | `Alt+P` | Insert previous matching transaction template (Emacs `M-p`) |
 | `Alt+N` | Insert next matching transaction template (Emacs `M-n`) |
 | `Ctrl+Enter` | Finalise / commit current transaction entry |

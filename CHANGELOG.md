@@ -13,6 +13,23 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Replace DataTable editor with a text editor (like eMacs Ledger Mode);
+  move balance sidebar to the right; add a register panel.
+- Claude: Replaced `TransactionTable` (DataTable) with `JournalEditor` (TextArea)
+  in `transaction_table.py`. Editor loads raw hledger text, detects transaction
+  components at the cursor, and posts `CursorAccountChanged` on every cursor move.
+  `Ctrl+S` calls `parse_string_lenient` + `journal_to_text` + `Path.write_text`
+  (no longer via `EditorDocument.save`). `Shift+C` cycles the flag character
+  in-place via `textarea.replace()`. Moved `BalanceSidebar` to the right-hand
+  `#right_panel` (`Vertical` container); added `AccountSelected` message and node
+  `data` storage so clicking a tree node drives the register. Created new
+  `RegisterPanel` widget (`register_panel.py`): `@work(thread=True, exclusive=True)`
+  loads `journal.register(query=Query(account=...))` and shows the last 10 rows in
+  a DataTable; wired to both `CursorAccountChanged` and `AccountSelected`. Updated
+  `app.py` layout CSS and added three message handlers. Added 17+1+9 new tests
+  (rewritten `test_transaction_table.py`, new `test_register_panel.py`, added
+  `test_node_selected_posts_account_selected` to balance sidebar); full suite 87/87.
+
 - Human: Implement Milestone 1 — Core Editing Surface.
 - Claude: Implemented `TransactionTable` widget with `DataTable`-based grid (5
   columns: Date, Flag, Description, Account, Amount), `_RowMeta` row index,
