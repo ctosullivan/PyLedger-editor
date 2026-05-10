@@ -1,6 +1,8 @@
 # ── Project-specific ──────────────────────────────────────────────────────────
 vendor/
 personal.journal
+tests/fixtures/sandbox.journal
+run_uat.ps1
 *.journal.bak
 *.ledger.bak
 

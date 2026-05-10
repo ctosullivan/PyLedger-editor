@@ -13,6 +13,18 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Implement Milestone 1 — Core Editing Surface.
+- Claude: Implemented `TransactionTable` widget with `DataTable`-based grid (5
+  columns: Date, Flag, Description, Account, Amount), `_RowMeta` row index,
+  in-place cell editing via pinned `Input` bar, and all Milestone 1 key actions:
+  `Ctrl+S` (sort-by-date + save + basic-checks notify), `Shift+C` (3-state
+  cleared toggle), `Ctrl+←/→` (field navigation), `Ctrl+↑/↓` (transaction
+  navigation), `Escape` (cancel edit). Implemented `BalanceSidebar` widget with
+  Textual `Tree`, threaded `@work` refresh via `journal.balance(tree=True)`, and
+  `call_from_thread` UI update. Wired `LedgerApp.on_transaction_table_save_completed`
+  to call `refresh_balances()` after each save. Added 23 tests across
+  `test_transaction_table.py` and `test_balance_sidebar.py`; full suite 78/78.
+
 ## [0.0.1] — 2026-05-10
 
 - Human: Set up the initial project scaffold and development environment for a

@@ -40,6 +40,9 @@ class LedgerApp(App[None]):
     """
 
     TITLE = "Ledger Editor"
+    BINDINGS = [
+        ("ctrl+shift+f", "toggle_filter", "Filter"),
+    ]
     CSS = """
     Screen {
         layout: horizontal;
@@ -69,6 +72,10 @@ class LedgerApp(App[None]):
         yield BalanceSidebar(self.journal_path)
         yield TransactionTable(self.journal_path)
         yield Footer()
+
+    def on_transaction_table_save_completed(self) -> None:
+        """Refresh account balances whenever the journal is saved."""
+        self.query_one(BalanceSidebar).refresh_balances()
 
     def action_toggle_filter(self) -> None:
         """Open or close the transaction filter popup (Ctrl+Shift+F)."""
