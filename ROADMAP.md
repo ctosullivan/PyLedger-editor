@@ -35,20 +35,28 @@ Milestones track the editor's development phases. A milestone is only marked
 - [ ] `Ctrl+D` autofill: duplicate once to bottom, date → today
 - [ ] `Alt+P` / `Alt+N`: previous/next matching transaction template
 
-## Milestone 3 — True Filter Popup
+## Milestone 3 — True Filter Popup `[DONE — 2026-05-11]`
 
 The current `FilterPopup` (opened with `Ctrl+Shift+F`) is a UI stub only.
 `apply_filter()` is unimplemented. A true filter needs:
 
-- [ ] Read criteria from Input fields (date from/to, account glob, payee substring)
-- [ ] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
-- [ ] Call `PyLedger.load().register(query=Query(...))` with assembled criteria
-- [ ] Display filtered results (dedicated results panel or filtered view)
-- [ ] Forward / reverse search (`Ctrl+F` / `Ctrl+R`)
+- [x] Read criteria from Input fields (date from/to, account glob, payee substring)
+- [x] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
+- [x] Call `PyLedger.load().register(query=Query(...))` with assembled criteria
+- [x] Display filtered results (dedicated results panel or filtered view)
+- [x] Forward / reverse search (`Ctrl+F` / `Ctrl+R`)
 
 ## Milestone 4 — Polish & Robustness
 
-- [ ] Full pytest suite with Textual test harness (pilot testing)
+- [x] Full pytest suite with Textual test harness (pilot testing) — 157 tests
+- [ ] Syntax highlighting: hledger token colouring (date, flag, payee, account,
+      amount, commodity, comments, directives) — `[DONE — 2026-05-11]`
+- [ ] Monokai Pro as hardcoded default app theme with TCSS widget chrome overrides
+      — `[DONE — 2026-05-11]`
+- [ ] Runtime theme switching: `app.theme = name` auto-updates TextArea colours
+      — `[DONE — 2026-05-11]`
+- [ ] Block-level background overlays (cleared / pending / uncleared tinting)
+      — `[DONE — 2026-05-11]`
 - [ ] Async balance refresh after every save
 - [ ] Error/warning notification bar for validation failures
 - [ ] Command palette integration

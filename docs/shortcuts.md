@@ -11,7 +11,7 @@
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+R` | 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared |
+| `Ctrl+R` | **Single transaction**: 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared. **Multi-transaction selection**: if all selected transactions are cleared → all become uncleared; otherwise → all become cleared (`*`). |
 
 ## Panel Focus Cycling
 
@@ -20,11 +20,20 @@
 | `Tab` | Cycle focus: Text editor → Balance sidebar → Register panel → Text editor |
 | `Shift+Tab` | Reverse cycle |
 
-## Transaction Block Selection
+## Transaction Block Selection & Navigation
 
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+T` | Select the entire current transaction block (header line through last posting), regardless of cursor position within the block |
+| `Shift+PgUp` | Move cursor to the header line of the previous transaction |
+| `Shift+PgDown` | Move cursor to the header line of the next transaction |
+
+## Text Editing
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | When cursor is on a transaction header or posting line, the new line is auto-indented with 4 spaces (TAB is reserved for focus cycling) |
+| `Ctrl+G` | Duplicate the current transaction block to the end of the file with today's date |
 
 ## Text Navigation (custom bindings)
 

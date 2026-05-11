@@ -8,6 +8,7 @@ FilterPopup overlays on demand via Ctrl+Shift+F.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import ClassVar
@@ -23,9 +24,12 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Footer, Header
 
+from ledger_editor.themes import register_all
+from ledger_editor.themes.monokai_pro import THEME_NAME
 from ledger_editor.utils.file_resolver import resolve_journal_file
 from ledger_editor.widgets.balance_sidebar import BalanceSidebar
 from ledger_editor.widgets.filter_popup import FilterPopup
+from ledger_editor.widgets.ledger_textarea import LedgerTextArea
 from ledger_editor.widgets.register_panel import RegisterPanel
 from ledger_editor.widgets.transaction_table import JournalEditor
 
@@ -46,6 +50,7 @@ class LedgerApp(App[None]):
 
     TITLE = "Ledger Editor"
     COMMAND_PALETTE_DISPLAY: ClassVar[str] = "Ctrl+P"
+    CSS_PATH = ["themes/monokai_pro.tcss"]
     BINDINGS = [
         Binding("ctrl+shift+f", "toggle_filter", "Filter", priority=True, key_display="Ctrl+Shift+F"),
     ]
@@ -78,6 +83,14 @@ class LedgerApp(App[None]):
         """
         super().__init__()
         self.journal_path = journal_path
+
+    def on_mount(self) -> None:
+        """Register bundled themes and activate Monokai Pro as the default."""
+        editor = self.query_one(JournalEditor)
+        ledger_textarea = editor.query_one("#journal_textarea", LedgerTextArea)
+        register_all(self, ledger_textarea)
+        if os.environ.get("TEXTUAL_THEME") is None:
+            self.theme = THEME_NAME
 
     def compose(self) -> ComposeResult:
         """Build the initial widget tree."""

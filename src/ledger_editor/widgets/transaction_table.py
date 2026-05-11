@@ -16,6 +16,9 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import TextArea
 
+from ledger_editor.highlighting.highlighter import LineKind
+from ledger_editor.widgets.ledger_textarea import LedgerTextArea
+
 __all__ = ["JournalEditor"]
 
 # Purpose: parse an hledger transaction header line to extract and cycle the
@@ -127,8 +130,13 @@ class JournalEditor(Widget):
     BINDINGS = [
         Binding("ctrl+s", "save", "Save", key_display="Ctrl+S"),
         Binding("ctrl+r", "toggle_cleared", "Toggle cleared", key_display="Ctrl+R"),
+        Binding("ctrl+g", "autofill", "Duplicate to end", key_display="Ctrl+G"),
         Binding("escape", "blur_editor", "Unfocus"),
         Binding("ctrl+t", "select_transaction_block", "Select transaction",
+                show=False, priority=True),
+        Binding("shift+pageup", "prev_transaction", "Prev transaction",
+                show=False, priority=True),
+        Binding("shift+pagedown", "next_transaction", "Next transaction",
                 show=False, priority=True),
         Binding("ctrl+home", "cursor_to_start", "Start of file",
                 show=False, priority=True),
@@ -168,8 +176,8 @@ class JournalEditor(Widget):
         self._current_account: str | None = None
 
     def compose(self) -> ComposeResult:
-        """Render a full-height TextArea for journal editing."""
-        yield TextArea(id="journal_textarea", show_line_numbers=True)
+        """Render a full-height LedgerTextArea for journal editing."""
+        yield LedgerTextArea(id="journal_textarea", show_line_numbers=True)
 
     def on_mount(self) -> None:
         """Load the raw journal text into the TextArea on first render."""
@@ -198,22 +206,116 @@ class JournalEditor(Widget):
         self.app.set_focus(None)
 
     def action_toggle_cleared(self) -> None:
-        """Cycle the flag on the transaction header line at the cursor.
+        """Cycle or bulk-toggle the cleared flag on transaction header(s).
 
-        Only acts on non-indented (header) lines. Posting lines are ignored.
-        Cycle order: no flag → '!' → '*' → no flag.
+        Single transaction (no spanning selection): cycle none → '!' → '*' → none.
+        Multi-transaction selection: if all headers are cleared ('*') remove all flags,
+        otherwise set all headers to '*'.
         """
+        textarea = self.query_one("#journal_textarea", TextArea)
+        sel = textarea.selection
+        start_row, _ = sel.start
+        end_row, _ = sel.end
+        if end_row > start_row:
+            self._bulk_toggle_cleared(textarea, start_row, end_row)
+        else:
+            row, _ = textarea.cursor_location
+            lines = textarea.text.splitlines()
+            if row >= len(lines):
+                return
+            line = lines[row]
+            if not line or line[0].isspace():
+                return
+            new_line = _cycle_flag_in_header(line)
+            if new_line != line:
+                textarea.replace(new_line, (row, 0), (row, len(line)))
+
+    def _bulk_toggle_cleared(
+        self, textarea: TextArea, start_row: int, end_row: int
+    ) -> None:
+        """Toggle cleared flag on all transaction headers within [start_row, end_row].
+
+        If every header in the range is already cleared, remove all flags.
+        Otherwise set all headers to '*' (cleared).
+        Changes are applied in reverse row order so earlier row indices stay valid.
+        """
+        lines = textarea.text.splitlines()
+        header_rows = [
+            i for i in range(start_row, end_row + 1)
+            if i < len(lines)
+            and lines[i]
+            and not lines[i][0].isspace()
+            and _TXN_HEADER_RE.match(lines[i])
+        ]
+        if not header_rows:
+            return
+        all_cleared = all(
+            _TXN_HEADER_RE.match(lines[r]).group(2) == "*"  # type: ignore[union-attr]
+            for r in header_rows
+        )
+        new_flag: str | None = None if all_cleared else "*"
+        for r in reversed(header_rows):
+            m = _TXN_HEADER_RE.match(lines[r])
+            if not m:
+                continue
+            parts = [m.group(1)]
+            if new_flag:
+                parts.append(new_flag)
+            if m.group(3):
+                parts.append(m.group(3))
+            new_line = " ".join(parts)
+            textarea.replace(new_line, (r, 0), (r, len(lines[r])))
+
+    def action_autofill(self) -> None:
+        """Duplicate the current transaction block to the end of the file (Ctrl+D).
+
+        Copies every line of the transaction block at the cursor, replaces the date
+        in the header with today's date, appends the block after a blank separator,
+        and moves the cursor to the start of the new block.
+        """
+        from datetime import date as _date  # noqa: PLC0415
+
         textarea = self.query_one("#journal_textarea", TextArea)
         row, _ = textarea.cursor_location
         lines = textarea.text.splitlines()
-        if row >= len(lines):
+        if not lines:
             return
-        line = lines[row]
-        if not line or line[0].isspace():
-            return
-        new_line = _cycle_flag_in_header(line)
-        if new_line != line:
-            textarea.replace(new_line, (row, 0), (row, len(line)))
+        start_row, end_row = _find_transaction_block(lines, row)
+        block_lines = list(lines[start_row : end_row + 1])
+
+        m = _TXN_HEADER_RE.match(block_lines[0])
+        if m:
+            today = _date.today().isoformat()
+            block_lines[0] = today + block_lines[0][len(m.group(1)):]
+
+        new_block = "\n".join(block_lines)
+        current_text = textarea.text.rstrip("\n")
+        new_text = current_text + "\n\n" + new_block + "\n"
+        textarea.load_text(new_text)
+
+        new_lines = new_text.splitlines()
+        new_start = len(new_lines) - len(block_lines)
+        textarea.move_cursor((new_start, 0))
+
+    def action_prev_transaction(self) -> None:
+        """Move cursor to the header of the previous transaction (Shift+PgUp)."""
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+        row, _ = textarea.cursor_location
+        line_infos = textarea._highlighter._line_infos
+        for i in range(row - 1, -1, -1):
+            if i < len(line_infos) and line_infos[i].kind == LineKind.XACT_HEADER:
+                textarea.move_cursor((i, 0))
+                return
+
+    def action_next_transaction(self) -> None:
+        """Move cursor to the header of the next transaction (Shift+PgDown)."""
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+        row, _ = textarea.cursor_location
+        line_infos = textarea._highlighter._line_infos
+        for i in range(row + 1, len(line_infos)):
+            if line_infos[i].kind == LineKind.XACT_HEADER:
+                textarea.move_cursor((i, 0))
+                return
 
     def action_save(self) -> None:
         """Validate, sort by date, and write the journal to disk.

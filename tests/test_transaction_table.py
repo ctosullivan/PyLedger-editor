@@ -1,9 +1,11 @@
 """Tests for ledger_editor.widgets.transaction_table (JournalEditor)."""
 
+from datetime import date as _date
 from pathlib import Path
 import shutil
 
 from ledger_editor.app import LedgerApp
+from ledger_editor.widgets.ledger_textarea import LedgerTextArea
 from ledger_editor.widgets.transaction_table import (
     JournalEditor,
     _cycle_flag_in_header,
@@ -310,3 +312,227 @@ class TestNavigationActions:
             sel = textarea.selection
             assert sel.start == (0, 0)
             assert sel.end == (len(lines) - 1, len(lines[-1]))
+
+
+# ---------------------------------------------------------------------------
+# Autofill: Ctrl+D duplicates transaction with today's date
+# ---------------------------------------------------------------------------
+
+TWO_TXN_JOURNAL = (
+    "2024-01-10 * Opening balances\n"
+    "    assets:bank:checking    £1000.00\n"
+    "    equity:opening-balances\n"
+    "\n"
+    "2024-01-15 Groceries\n"
+    "    expenses:food    £42.50\n"
+    "    assets:bank:checking\n"
+)
+
+
+class TestAutofill:
+    """Tests for action_autofill (Ctrl+D) — duplicate transaction with today's date."""
+
+    async def test_autofill_appends_block(self, tmp_path: Path) -> None:
+        """After Ctrl+D the file has an extra transaction at the bottom."""
+        journal = tmp_path / "dup.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            header_row = next(i for i, l in enumerate(lines) if "Groceries" in l)
+            textarea.move_cursor((header_row, 0))
+            editor.action_autofill()
+            await pilot.pause()
+
+            new_lines = textarea.text.splitlines()
+            assert len(new_lines) > len(lines)
+
+    async def test_autofill_sets_today_date(self, tmp_path: Path) -> None:
+        """The duplicated block's header date is today."""
+        journal = tmp_path / "dup.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            header_row = next(i for i, l in enumerate(lines) if "Groceries" in l)
+            textarea.move_cursor((header_row, 0))
+            editor.action_autofill()
+            await pilot.pause()
+
+            today = _date.today().isoformat()
+            new_lines = textarea.text.splitlines()
+            last_headers = [l for l in new_lines if l.startswith(today)]
+            assert last_headers, f"No header with today's date {today!r} found"
+
+    async def test_autofill_cursor_on_new_block(self, tmp_path: Path) -> None:
+        """After Ctrl+D the cursor is positioned at the new block's header."""
+        journal = tmp_path / "dup.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            header_row = next(i for i, l in enumerate(lines) if "Groceries" in l)
+            textarea.move_cursor((header_row, 0))
+            editor.action_autofill()
+            await pilot.pause()
+
+            today = _date.today().isoformat()
+            row, _ = textarea.cursor_location
+            current_line = textarea.text.splitlines()[row]
+            assert current_line.startswith(today)
+
+
+# ---------------------------------------------------------------------------
+# Prev/next transaction navigation (Shift+PgUp / Shift+PgDown)
+# ---------------------------------------------------------------------------
+
+
+class TestPrevNextTransaction:
+    """Tests for action_prev_transaction and action_next_transaction."""
+
+    async def test_next_transaction_moves_to_second_header(self, tmp_path: Path) -> None:
+        """Shift+PgDown from first transaction moves cursor to second header."""
+        journal = tmp_path / "nav.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            # Start at first transaction header
+            lines = textarea.text.splitlines()
+            first_header = next(i for i, l in enumerate(lines) if l.startswith("2024-"))
+            textarea.move_cursor((first_header, 0))
+            editor.action_next_transaction()
+            await pilot.pause()
+
+            row, _ = textarea.cursor_location
+            current_line = textarea.text.splitlines()[row]
+            assert current_line.startswith("2024-"), f"Expected header, got: {current_line!r}"
+            assert row > first_header
+
+    async def test_prev_transaction_moves_to_first_header(self, tmp_path: Path) -> None:
+        """Shift+PgUp from second transaction moves cursor to first header."""
+        journal = tmp_path / "nav.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            second_header = next(
+                i for i, l in enumerate(lines) if "Groceries" in l and l.startswith("2024-")
+            )
+            textarea.move_cursor((second_header, 0))
+            editor.action_prev_transaction()
+            await pilot.pause()
+
+            row, _ = textarea.cursor_location
+            current_line = textarea.text.splitlines()[row]
+            assert current_line.startswith("2024-")
+            assert row < second_header
+
+    async def test_next_at_last_transaction_does_not_crash(self, tmp_path: Path) -> None:
+        """Shift+PgDown at the last transaction header silently does nothing."""
+        journal = tmp_path / "nav.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            last_header = max(
+                i for i, l in enumerate(lines) if l.startswith("2024-")
+            )
+            textarea.move_cursor((last_header, 0))
+            editor.action_next_transaction()  # should be a no-op
+            await pilot.pause()
+
+            row, _ = textarea.cursor_location
+            assert row == last_header
+
+
+# ---------------------------------------------------------------------------
+# Bulk toggle cleared (Ctrl+R with multi-line selection)
+# ---------------------------------------------------------------------------
+
+
+class TestBulkToggleCleared:
+    """Tests for bulk Ctrl+R with a spanning selection."""
+
+    async def test_bulk_sets_all_to_cleared(self, tmp_path: Path) -> None:
+        """All-uncleared selection → all become '*' after one Ctrl+R."""
+        journal = tmp_path / "bulk.journal"
+        journal.write_text(
+            "2024-01-10 Opening\n"
+            "    assets:bank    £1000.00\n"
+            "    equity:open\n"
+            "\n"
+            "2024-01-15 Groceries\n"
+            "    expenses:food    £42.50\n"
+            "    assets:bank\n",
+            encoding="utf-8",
+        )
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            last_row = len(lines) - 1
+            textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
+            editor.action_toggle_cleared()
+            await pilot.pause()
+
+            new_lines = textarea.text.splitlines()
+            header_lines = [l for l in new_lines if l.startswith("2024-")]
+            assert all("*" in l for l in header_lines), f"Not all cleared: {header_lines}"
+
+    async def test_bulk_all_cleared_removes_flags(self, tmp_path: Path) -> None:
+        """All-cleared selection → all flags removed after one Ctrl+R."""
+        journal = tmp_path / "bulk.journal"
+        journal.write_text(
+            "2024-01-10 * Opening\n"
+            "    assets:bank    £1000.00\n"
+            "    equity:open\n"
+            "\n"
+            "2024-01-15 * Groceries\n"
+            "    expenses:food    £42.50\n"
+            "    assets:bank\n",
+            encoding="utf-8",
+        )
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            last_row = len(lines) - 1
+            textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
+            editor.action_toggle_cleared()
+            await pilot.pause()
+
+            new_lines = textarea.text.splitlines()
+            header_lines = [l for l in new_lines if l.startswith("2024-")]
+            assert all("*" not in l for l in header_lines), f"Flags not removed: {header_lines}"

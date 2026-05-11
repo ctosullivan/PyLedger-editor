@@ -1,0 +1,123 @@
+/*
+ * Monokai Pro theme overrides for Ledger Editor.
+ *
+ * Every rule is scoped to App.-theme-monokai-pro so these styles only apply
+ * when the Monokai Pro app theme is active. Textual 8.2.5 automatically adds
+ * the class -theme-{name} to the App widget when app.theme is set.
+ *
+ * Colour palette (see monokai_pro.py for canonical values):
+ *   background  #2D2A2E   surface    #3D3A3E   panel      #403E41
+ *   foreground  #FCFCFA   cyan       #78DCE8   purple     #AB9DF2
+ *   green       #A9DC76   yellow     #FFD866   red        #FF6188
+ *   orange      #FC9867   comment    #939293
+ */
+
+App.-theme-monokai-pro Header {
+    background: $primary;
+    color: $background;
+}
+
+App.-theme-monokai-pro Footer {
+    background: $surface;
+    color: $foreground;
+}
+
+App.-theme-monokai-pro Screen {
+    background: $background;
+}
+
+App.-theme-monokai-pro Button {
+    background: $surface;
+    color: $foreground;
+    border: tall $boost;
+}
+
+App.-theme-monokai-pro Button:hover {
+    background: $panel;
+    border: tall $primary;
+}
+
+App.-theme-monokai-pro Button.-primary {
+    background: $primary;
+    color: $background;
+}
+
+App.-theme-monokai-pro Input {
+    background: $surface;
+    color: $foreground;
+    border: tall $boost;
+}
+
+App.-theme-monokai-pro Input:focus {
+    border: tall $primary;
+}
+
+App.-theme-monokai-pro DataTable {
+    background: $background;
+    color: $foreground;
+}
+
+App.-theme-monokai-pro DataTable > .datatable--header {
+    background: $surface;
+    color: $primary;
+    text-style: bold;
+}
+
+App.-theme-monokai-pro DataTable > .datatable--cursor {
+    background: $primary;
+    color: $background;
+}
+
+App.-theme-monokai-pro DataTable > .datatable--hover {
+    background: $panel;
+}
+
+App.-theme-monokai-pro Tree {
+    background: $background;
+    color: $foreground;
+}
+
+App.-theme-monokai-pro Tree > .tree--cursor {
+    background: $primary;
+    color: $background;
+}
+
+App.-theme-monokai-pro Tree > .tree--highlight {
+    background: $surface;
+}
+
+App.-theme-monokai-pro FilterPopup {
+    background: $surface;
+    border: round $primary;
+    color: $foreground;
+}
+
+App.-theme-monokai-pro FilterPopup Input {
+    background: $panel;
+    border: tall $boost;
+}
+
+App.-theme-monokai-pro FilterPopup Input:focus {
+    border: tall $primary;
+}
+
+App.-theme-monokai-pro Tooltip {
+    background: $panel;
+    color: $foreground;
+    border: round $boost;
+}
+
+App.-theme-monokai-pro .notify--information {
+    background: $surface;
+    border-left: wide $primary;
+}
+
+App.-theme-monokai-pro .notify--warning {
+    background: $surface;
+    border-left: wide $warning;
+}
+
+App.-theme-monokai-pro .notify--error {
+    background: $surface;
+    border-left: wide $error;
+}
