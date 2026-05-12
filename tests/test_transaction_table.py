@@ -536,3 +536,140 @@ class TestBulkToggleCleared:
             new_lines = textarea.text.splitlines()
             header_lines = [l for l in new_lines if l.startswith("2024-")]
             assert all("*" not in l for l in header_lines), f"Flags not removed: {header_lines}"
+
+    async def test_bulk_toggle_reversed_selection(self, tmp_path: Path) -> None:
+        """Bulk toggle works correctly when selection runs bottom-to-top."""
+        journal = tmp_path / "bulk_rev.journal"
+        journal.write_text(
+            "2024-01-10 Opening\n"
+            "    assets:bank    £1000.00\n"
+            "    equity:open\n"
+            "\n"
+            "2024-01-15 Groceries\n"
+            "    expenses:food    £42.50\n"
+            "    assets:bank\n",
+            encoding="utf-8",
+        )
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            lines = textarea.text.splitlines()
+            last_row = len(lines) - 1
+            # Reversed selection: end < start
+            textarea.selection = Selection((last_row, len(lines[last_row])), (0, 0))
+            editor.action_toggle_cleared()
+            await pilot.pause()
+
+            new_lines = textarea.text.splitlines()
+            header_lines = [l for l in new_lines if l.startswith("2024-")]
+            assert all("*" in l for l in header_lines), (
+                f"Reversed selection should still set all to *: {header_lines}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Enter auto-indent: col-0 guard
+# ---------------------------------------------------------------------------
+
+
+class TestEnterAtCol0:
+    """Enter at the very start of a transaction header must not auto-indent."""
+
+    async def test_enter_at_col0_does_not_indent_date(self, tmp_path: Path) -> None:
+        """Pressing Enter at column 0 of a header inserts a plain newline."""
+        journal = tmp_path / "col0.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", LedgerTextArea)
+
+            lines = textarea.text.splitlines()
+            header_row = next(i for i, l in enumerate(lines) if "Groceries" in l)
+            textarea.move_cursor((header_row, 0))  # column 0
+
+            await pilot.press("enter")
+            await pilot.pause()
+
+            new_lines = textarea.text.splitlines()
+            # The original header should still start with a date (no 4-space indent)
+            header_after = new_lines[header_row + 1]
+            assert header_after.startswith("2024-"), (
+                f"Date line should not be indented; got {header_after!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Ctrl+T extend selection on repeated press
+# ---------------------------------------------------------------------------
+
+
+class TestSelectExtend:
+    """Pressing Ctrl+T twice extends the selection to include the next block."""
+
+    async def test_second_ctrl_t_extends_to_next_block(self, tmp_path: Path) -> None:
+        """First Ctrl+T selects one block; second extends to two."""
+        journal = tmp_path / "ext.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", LedgerTextArea)
+
+            lines = textarea.text.splitlines()
+            first_header = next(i for i, l in enumerate(lines) if l.startswith("2024-"))
+            textarea.move_cursor((first_header, 0))
+
+            editor.action_select_transaction_block()
+            await pilot.pause()
+            first_sel = textarea.selection
+
+            editor.action_select_transaction_block()
+            await pilot.pause()
+            second_sel = textarea.selection
+
+            # Second selection should cover more rows
+            first_end = max(first_sel.start[0], first_sel.end[0])
+            second_end = max(second_sel.start[0], second_sel.end[0])
+            assert second_end > first_end, (
+                f"Second Ctrl+T should extend selection end beyond {first_end}, got {second_end}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Ctrl+; insert today's date
+# ---------------------------------------------------------------------------
+
+
+class TestInsertToday:
+    """Ctrl+; inserts today's ISO date at the cursor."""
+
+    async def test_insert_today_inserts_date(self, tmp_path: Path) -> None:
+        """action_insert_today inserts today's ISO date at the cursor position."""
+        journal = tmp_path / "today.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            # Move cursor to a blank line
+            lines = textarea.text.splitlines()
+            blank_row = next(i for i, l in enumerate(lines) if l == "")
+            textarea.move_cursor((blank_row, 0))
+
+            editor.action_insert_today()
+            await pilot.pause()
+
+            today = _date.today().isoformat()
+            new_lines = textarea.text.splitlines()
+            assert any(today in l for l in new_lines), (
+                f"Today's date {today!r} not found in text"
+            )

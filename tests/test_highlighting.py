@@ -458,3 +458,76 @@ class TestAmountPrefixMerged:
         assert posting[start] in ("-", "£"), (
             f"Negative+prefix span should start at £ or -, got {posting[start]!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Suffix commodity codes — single-character codes must get COMMODITY token
+# ---------------------------------------------------------------------------
+
+
+class TestCommodity1Char:
+    """Suffix commodity codes of length 1 must be highlighted."""
+
+    def _posting_highlights(self, posting: str) -> list[tuple]:
+        doc = f"2024-01-10 Header\n{posting}"
+        h = LedgerHighlighter()
+        h.invalidate(doc)
+        return h.get_highlights(1, posting)
+
+    def test_single_char_suffix_gets_commodity_token(self) -> None:
+        spans = self._posting_highlights("    expenses:food    100 X")
+        token_names = [s[2] for s in spans]
+        assert tokens.COMMODITY in token_names, "Single-char suffix 'X' must get COMMODITY span"
+
+    def test_two_char_suffix_gets_commodity_token(self) -> None:
+        spans = self._posting_highlights("    expenses:food    100 GB")
+        token_names = [s[2] for s in spans]
+        assert tokens.COMMODITY in token_names
+
+    def test_three_char_suffix_unchanged(self) -> None:
+        spans = self._posting_highlights("    expenses:food    100 USD")
+        token_names = [s[2] for s in spans]
+        assert tokens.COMMODITY in token_names
+
+
+# ---------------------------------------------------------------------------
+# _build_cp_to_byte — UTF-8 byte offset mapping
+# ---------------------------------------------------------------------------
+
+
+class TestCpToByteMapping:
+    """_build_cp_to_byte must return correct byte offsets for multibyte chars."""
+
+    def _ctb(self, text: str) -> list[int]:
+        from ledger_editor.widgets.ledger_textarea import _build_cp_to_byte
+        return _build_cp_to_byte(text)
+
+    def test_ascii_only(self) -> None:
+        ctb = self._ctb("hello")
+        assert ctb == [0, 1, 2, 3, 4, 5]
+
+    def test_pound_sign_is_two_bytes(self) -> None:
+        # £ = U+00A3 = 0xC2 0xA3 in UTF-8 (2 bytes)
+        ctb = self._ctb("£")
+        assert ctb[0] == 0   # £ starts at byte 0
+        assert ctb[1] == 2   # one-past-end = byte 2
+
+    def test_euro_sign_is_three_bytes(self) -> None:
+        # € = U+20AC = 0xE2 0x82 0xAC in UTF-8 (3 bytes)
+        ctb = self._ctb("€")
+        assert ctb[0] == 0
+        assert ctb[1] == 3
+
+    def test_mixed_ascii_and_multibyte(self) -> None:
+        # "£42" — £ is 2 bytes, then 2 ASCII chars
+        ctb = self._ctb("£42")
+        assert ctb[0] == 0   # £ at byte 0
+        assert ctb[1] == 2   # 4 at byte 2
+        assert ctb[2] == 3   # 2 at byte 3
+        assert ctb[3] == 4   # sentinel
+
+    def test_amount_span_end_byte_for_gbp(self) -> None:
+        # "£42.50" has 6 codepoints but 7 bytes.
+        # Codepoint offset 6 (one-past-end) must map to byte 7.
+        ctb = self._ctb("£42.50")
+        assert ctb[6] == 7, f"Expected 7, got {ctb[6]}"

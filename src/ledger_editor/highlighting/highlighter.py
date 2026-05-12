@@ -89,8 +89,8 @@ _COMMENT_RE = re.compile(r"^[;#%]")
 #   (2) [$€£¥₹]     — optional prefix currency symbol (appears before digits)
 #   (3) [\d,]+\.?\d* — numeric value: integers, optional thousands commas,
 #                      optional decimal part (e.g. "1,234.50", "42", "0.5")
-#   (4) [A-Z]{2,6}   — optional suffix commodity code matched after whitespace
-#                      (e.g. "USD", "EUR", "BTC", "AAPL")
+#   (4) [A-Z]{1,6}   — optional suffix commodity code matched after whitespace
+#                      (e.g. "X", "USD", "EUR", "BTC", "AAPL")
 #
 # Edge cases:
 #   - "$42.50"    — group 1 absent, group 2="$", group 3="42.50", group 4 absent
@@ -102,7 +102,7 @@ _AMOUNT_RE = re.compile(
     r"(-?)"              # group 1: optional minus
     r"([$€£¥₹])?"       # group 2: optional prefix symbol
     r"([\d,]+\.?\d*)"   # group 3: numeric digits
-    r"(?:\s+([A-Z]{2,6}))?"  # group 4: optional suffix commodity code
+    r"(?:\s+([A-Z]{1,6}))?"  # group 4: optional suffix commodity code
 )
 
 # Matches an inline note (comment) within a posting or header line.

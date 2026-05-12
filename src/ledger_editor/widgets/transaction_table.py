@@ -19,6 +19,13 @@ from textual.widgets import TextArea
 from ledger_editor.highlighting.highlighter import LineKind
 from ledger_editor.widgets.ledger_textarea import LedgerTextArea
 
+# Imported lazily at runtime to avoid depending on Textual internals at import time.
+# Used only for the type annotation of _refresh_timer.
+try:
+    from textual.timer import Timer as _Timer
+except ImportError:
+    _Timer = object  # type: ignore[assignment,misc]
+
 __all__ = ["JournalEditor"]
 
 # Purpose: parse an hledger transaction header line to extract and cycle the
@@ -131,6 +138,8 @@ class JournalEditor(Widget):
         Binding("ctrl+s", "save", "Save", key_display="Ctrl+S"),
         Binding("ctrl+r", "toggle_cleared", "Toggle cleared", key_display="Ctrl+R"),
         Binding("ctrl+g", "autofill", "Duplicate to end", key_display="Ctrl+G"),
+        Binding("ctrl+d", "insert_today", "Insert date",
+                key_display="Ctrl+D", priority=True),
         Binding("escape", "blur_editor", "Unfocus"),
         Binding("ctrl+t", "select_transaction_block", "Select transaction",
                 show=False, priority=True),
@@ -165,6 +174,18 @@ class JournalEditor(Widget):
             super().__init__()
             self.account = account
 
+    class LiveChanged(Message):
+        """Posted ~0.8 s after the last keystroke so sidebars can refresh from memory.
+
+        Carries the current in-memory text and active account so callers can
+        parse and re-render without a disk read.
+        """
+
+        def __init__(self, text: str, account: str | None) -> None:
+            super().__init__()
+            self.text = text
+            self.account = account
+
     def __init__(self, journal_path: Path) -> None:
         """Initialise with the resolved absolute journal file path.
 
@@ -174,6 +195,7 @@ class JournalEditor(Widget):
         super().__init__()
         self.journal_path = journal_path
         self._current_account: str | None = None
+        self._refresh_timer: _Timer | None = None  # type: ignore[type-arg]
 
     def compose(self) -> ComposeResult:
         """Render a full-height LedgerTextArea for journal editing."""
@@ -197,6 +219,18 @@ class JournalEditor(Widget):
             self._current_account = new_account
             self.post_message(self.CursorAccountChanged(new_account))
 
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Debounce content edits and post LiveChanged for live sidebar refresh."""
+        if self._refresh_timer is not None:
+            self._refresh_timer.stop()
+        self._refresh_timer = self.set_timer(0.8, self._post_live_change)
+
+    def _post_live_change(self) -> None:
+        """Fire LiveChanged with the current in-memory text."""
+        self._refresh_timer = None
+        textarea = self.query_one("#journal_textarea", TextArea)
+        self.post_message(self.LiveChanged(text=textarea.text, account=self._current_account))
+
     # ------------------------------------------------------------------
     # Key actions
     # ------------------------------------------------------------------
@@ -214,8 +248,9 @@ class JournalEditor(Widget):
         """
         textarea = self.query_one("#journal_textarea", TextArea)
         sel = textarea.selection
-        start_row, _ = sel.start
-        end_row, _ = sel.end
+        # Normalize: selection can run bottom-to-top when the user drags upward.
+        start_row = min(sel.start[0], sel.end[0])
+        end_row = max(sel.start[0], sel.end[0])
         if end_row > start_row:
             self._bulk_toggle_cleared(textarea, start_row, end_row)
         else:
@@ -351,14 +386,46 @@ class JournalEditor(Widget):
         self.app.notify("Saved", severity="information")
 
     def action_select_transaction_block(self) -> None:
-        """Select the entire transaction block containing the cursor (Ctrl+T)."""
+        """Select the transaction block at the cursor; extend on each repeated press.
+
+        First press: selects the block containing the cursor.
+        Each subsequent press: if the current selection ends exactly at a
+        transaction block boundary, extends to include the next block.
+        """
         from textual.document._document import Selection  # noqa: PLC0415
 
-        textarea = self.query_one("#journal_textarea", TextArea)
-        row, _ = textarea.cursor_location
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
         lines = textarea.text.splitlines()
         if not lines:
             return
+
+        sel = textarea.selection
+        # Normalize: handle both selection directions.
+        sel_start_row = min(sel.start[0], sel.end[0])
+        sel_end_row = max(sel.start[0], sel.end[0])
+        sel_end_col = (
+            sel.start[1] if sel.start[0] > sel.end[0] else sel.end[1]
+        )
+
+        # If there is already a multi-row selection whose end aligns with a block
+        # boundary, extend by one more transaction block.
+        if sel_start_row < sel_end_row and sel_end_row < len(lines):
+            expected_end_col = len(lines[sel_end_row])
+            if sel_end_col == expected_end_col:
+                _, confirmed_block_end = _find_transaction_block(lines, sel_end_row)
+                if confirmed_block_end == sel_end_row:
+                    line_infos = textarea._highlighter._line_infos
+                    for i in range(sel_end_row + 1, len(line_infos)):
+                        if i < len(lines) and line_infos[i].kind == LineKind.XACT_HEADER:
+                            _, next_block_end = _find_transaction_block(lines, i)
+                            next_end_col = len(lines[next_block_end]) if next_block_end < len(lines) else 0
+                            textarea.selection = Selection(
+                                (sel_start_row, 0), (next_block_end, next_end_col)
+                            )
+                            return
+
+        # Default: select the block containing the cursor.
+        row, _ = textarea.cursor_location
         start_row, end_row = _find_transaction_block(lines, row)
         end_col = len(lines[end_row]) if end_row < len(lines) else 0
         textarea.selection = Selection((start_row, 0), (end_row, end_col))
@@ -385,4 +452,10 @@ class JournalEditor(Widget):
             return
         last_row = len(lines) - 1
         textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
+
+    def action_insert_today(self) -> None:
+        """Insert today's date at the cursor position (Ctrl+;)."""
+        from datetime import date as _date  # noqa: PLC0415
+
+        self.query_one("#journal_textarea", TextArea).insert(_date.today().isoformat() + " ")
 

@@ -102,6 +102,19 @@ class BalanceSidebar(Widget):
         rows = journal.balance(tree=True)
         self.app.call_from_thread(self._render_tree, rows)
 
+    @work(thread=True)
+    def refresh_from_text(self, text: str) -> None:
+        """Recompute balances from in-memory journal text without a disk read.
+
+        Called during live editing (debounced). Uses parse_string_lenient so
+        partial/malformed edits show a best-effort tree rather than crashing.
+        """
+        import PyLedger  # noqa: PLC0415
+
+        journal, _ = PyLedger.parse_string_lenient(text)
+        rows = journal.balance(tree=True)
+        self.app.call_from_thread(self._render_tree, rows)
+
     def _render_tree(self, rows: list) -> None:
         """Rebuild the Tree widget from a list of BalanceRow objects.
 

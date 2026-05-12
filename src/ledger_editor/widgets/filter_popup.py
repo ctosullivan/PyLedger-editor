@@ -8,6 +8,7 @@ delegates to ledger_editor.utils.date_parser.
 from __future__ import annotations
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import Input, Label
 
@@ -27,6 +28,11 @@ class FilterPopup(Widget):
         payee               : Substring match against transaction descriptions.
         amount_min / amount_max : Numeric range in the primary commodity.
     """
+
+    BINDINGS = [
+        Binding("ctrl+shift+f", "close_self", "Close filter", show=False, priority=True),
+        Binding("escape", "close_self", "Close filter", show=False, priority=True),
+    ]
 
     DEFAULT_CSS = """
     FilterPopup {
@@ -51,6 +57,10 @@ class FilterPopup(Widget):
         yield Input(placeholder="e.g. expenses:food", id="account")
         yield Label("Payee:")
         yield Input(placeholder="substring match", id="payee")
+
+    def action_close_self(self) -> None:
+        """Remove the popup (Ctrl+Shift+F toggle or Escape)."""
+        self.remove()
 
     def apply_filter(self) -> None:
         """Read field values, build a PyLedger.Query, and post to TransactionTable.

@@ -118,6 +118,19 @@ class RegisterPanel(Widget):
         rows = journal.register(query=PyLedger.Query(account=account))
         self.app.call_from_thread(self._render_rows, rows, account)
 
+    @work(thread=True, exclusive=True)
+    def refresh_account_from_text(self, text: str, account: str) -> None:
+        """Reload register for account from in-memory text without a disk read.
+
+        Called during live editing (debounced). Uses parse_string_lenient so
+        partial edits show best-effort rows rather than crashing.
+        """
+        import PyLedger  # noqa: PLC0415
+
+        journal, _ = PyLedger.parse_string_lenient(text)
+        rows = journal.register(query=PyLedger.Query(account=account))
+        self.app.call_from_thread(self._render_rows, rows, account)
+
     def _render_rows(self, rows: list, for_account: str) -> None:
         """Rebuild the DataTable on the main thread.
 

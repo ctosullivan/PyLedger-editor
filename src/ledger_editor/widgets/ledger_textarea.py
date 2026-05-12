@@ -5,11 +5,11 @@ widgets/_text_area.py:697) to inject ledger-specific highlights after the
 base tree-sitter pass. If this method is renamed in a future Textual release,
 move the injection into an equivalent post-edit hook.
 
-Two highlight layers are produced on every rebuild:
-  Layer 1 — field-level token spans (date, flag, account, amount, etc.)
-  Layer 2 — block-level background spans (cleared/pending/uncleared overlay)
-
-Both layers write into self._highlights, which Textual reads during render.
+Textual's _highlights dict uses UTF-8 byte column offsets (inherited from
+tree-sitter). Python's re module returns Unicode codepoint offsets. For
+ASCII-only lines these are identical; for lines containing multibyte currency
+symbols (£, €, ₹) the offsets diverge. _build_cp_to_byte() converts each
+span produced by LedgerHighlighter before it is written to _highlights.
 """
 
 from __future__ import annotations
@@ -22,6 +22,22 @@ from ledger_editor.highlighting import tokens as _tok
 from ledger_editor.highlighting.highlighter import LineKind
 
 __all__ = ["LedgerTextArea"]
+
+
+def _build_cp_to_byte(line: str) -> list[int]:
+    """Return a list mapping each codepoint index to its UTF-8 byte offset.
+
+    Index i is the byte offset of codepoint i. Index len(line) is the total
+    byte length of the line (one-past-end sentinel), matching the exclusive-end
+    convention used by Textual's highlight spans.
+    """
+    result = [0] * (len(line) + 1)
+    b = 0
+    for i, ch in enumerate(line):
+        result[i] = b
+        b += len(ch.encode("utf-8"))
+    result[len(line)] = b
+    return result
 
 
 class LedgerTextArea(TextArea):
@@ -55,15 +71,26 @@ class LedgerTextArea(TextArea):
         that would double-invoke the parent.
 
         TAB is claimed for focus cycling, so auto-indent uses Enter instead.
+
+        Col-0 guard: pressing Enter at the very start of a header line inserts a
+        blank separator line before the transaction — auto-indent must not fire
+        there, otherwise the date gets pushed down with a 4-space prefix.
         """
         if event.key == "enter":
-            row, _ = self.cursor_location
+            row, col = self.cursor_location
             line_infos = self._highlighter._line_infos
-            if row < len(line_infos) and line_infos[row].kind in (
-                LineKind.XACT_HEADER, LineKind.POSTING
-            ):
-                event.prevent_default()
-                self.insert("\n    ")
+            if row < len(line_infos):
+                kind = line_infos[row].kind
+                if kind == LineKind.POSTING or (
+                    kind == LineKind.XACT_HEADER and col > 0
+                ):
+                    event.prevent_default()
+                    self.insert("\n    ")
+                    # event.prevent_default() skips Textual's normal key-dispatch
+                    # path, which includes a scroll-to-cursor step.
+                    # move_cursor(same_pos) is a reactive no-op; scroll_cursor_visible()
+                    # scrolls unconditionally regardless of cursor position change.
+                    self.scroll_cursor_visible()
 
     # ------------------------------------------------------------------
     # Mount
@@ -102,6 +129,11 @@ class LedgerTextArea(TextArea):
         # self._highlights and runs any tree-sitter grammar (none is set here,
         # so it returns immediately after clearing). We then inject custom spans.
         #
+        # LedgerHighlighter.get_highlights() returns codepoint column offsets.
+        # Textual's _highlights uses UTF-8 byte offsets (matching tree-sitter).
+        # _build_cp_to_byte() converts each span before writing to _highlights so
+        # that multibyte currency symbols (£, €, ₹) are aligned correctly.
+        #
         # Performance note: _scan() is O(N lines). For journals up to ~1 000
         # lines this is well within one frame budget (~16 ms). If profiling
         # shows overruns on larger files, move invalidate() into a
@@ -112,7 +144,13 @@ class LedgerTextArea(TextArea):
         lines = self.text.splitlines()
         for line_idx, line_text in enumerate(lines):
             spans = self._highlighter.get_highlights(line_idx, line_text)
-            self._highlights[line_idx].extend(spans)
+            if not spans:
+                continue
+            ctb = _build_cp_to_byte(line_text)
+            for start_cp, end_cp, tok in spans:
+                start_b = ctb[start_cp]
+                end_b = ctb[end_cp] if end_cp is not None else None
+                self._highlights[line_idx].append((start_b, end_b, tok))
 
     # ------------------------------------------------------------------
     # Theme management

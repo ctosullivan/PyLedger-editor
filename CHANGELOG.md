@@ -15,6 +15,53 @@ Format per entry:
 
 ---
 
+## [0.6.0] — 2026-05-12
+
+- Human: Insert-date binding Ctrl+M also inserts a newline (Ctrl+M = Enter in
+  terminals); rebind to Ctrl+D. Enter at buffer bottom loses cursor from view.
+  Date insert should append a trailing space.
+- Claude: Rebound insert_today from `ctrl+m` to `ctrl+d` with `priority=True`
+  (overrides TextArea's delete-char handler; Delete/Backspace still available).
+  `action_insert_today` inserts `date.today().isoformat() + " "` (trailing space
+  for immediate payee entry). Fixed scroll: after `event.prevent_default()` +
+  `self.insert()` in `LedgerTextArea._on_key`, Textual's scroll-to-cursor step is
+  skipped; replaced `self.move_cursor(self.cursor_location)` (reactive no-op when
+  cursor position is unchanged) with `self.scroll_cursor_visible()` (unconditional
+  scroll). Updated `docs/shortcuts.md`. Suite: 178/178.
+
+- Human: UAT round 2 — amount last digit white, 1-char suffix commodity white,
+  Enter at col 0 indents date, Ctrl+T should extend selection, Ctrl+R
+  order-sensitive, Ctrl+Shift+F can't close popup, sidebars only refresh on
+  save; new: Ctrl+M insert today's date (initially bound to Ctrl+; which
+  did not register in terminal).
+- Claude: Fixed amount last-digit highlight: Textual's `_highlights` uses UTF-8
+  byte column offsets (from tree-sitter), not Unicode codepoints; added
+  `_build_cp_to_byte()` in `ledger_textarea.py` and convert each span in
+  `_build_highlight_map()` before writing to `_highlights` — fixes multibyte
+  symbols (£=2 bytes, €=3 bytes). Fixed 1-char suffix commodity: changed
+  `[A-Z]{2,6}` → `[A-Z]{1,6}` in `_AMOUNT_RE`. Fixed Enter at col 0: added
+  `col > 0` guard for `XACT_HEADER` in `_on_key` — pressing Enter at the very
+  start of a header now inserts a plain newline (blank-line separator) instead
+  of auto-indenting. Fixed Ctrl+T extend: `action_select_transaction_block`
+  checks if the current selection ends at a block boundary and, if so, extends
+  to include the next block; each press extends by one more transaction. Fixed
+  Ctrl+R order sensitivity: normalized `start_row = min(sel.start[0],
+  sel.end[0])` so reversed (bottom-to-top) selections bulk-toggle correctly.
+  Fixed Ctrl+Shift+F close: added `priority=True` bindings for `ctrl+shift+f`
+  and `escape` to `FilterPopup`, with `action_close_self` calling `self.remove()`.
+  Added live sidebar/register refresh: `JournalEditor.on_text_area_changed`
+  debounces 0.8 s then posts `LiveChanged(text, account)`; `LedgerApp` handles
+  it by calling `BalanceSidebar.refresh_from_text()` and
+  `RegisterPanel.refresh_account_from_text()`, both using
+  `parse_string_lenient` so partial edits show best-effort data. Added
+  `Ctrl+D` → `action_insert_today` (inserts today's ISO date + space at cursor;
+  initial `Ctrl+;` didn't register, `Ctrl+M` conflicted with Enter, final binding
+  is `Ctrl+D` with `priority=True`). Updated `docs/shortcuts.md`. Added 12 new
+  tests (TestCommodity1Char, TestCpToByteMapping, TestBulkToggleReversedSelection,
+  TestEnterAtCol0, TestSelectExtend, TestInsertToday). Suite: 178/178.
+
+---
+
 ## [0.5.0] — 2026-05-11
 
 - Human: Rebind duplicate-transaction (Ctrl+D → Ctrl+Shift+D → Ctrl+G); fix

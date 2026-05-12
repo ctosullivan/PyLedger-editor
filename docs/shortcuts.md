@@ -24,7 +24,7 @@
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+T` | Select the entire current transaction block (header line through last posting), regardless of cursor position within the block |
+| `Ctrl+T` | First press: select the current transaction block. Each subsequent press: extend the selection by one more transaction block. |
 | `Shift+PgUp` | Move cursor to the header line of the previous transaction |
 | `Shift+PgDown` | Move cursor to the header line of the next transaction |
 
@@ -32,8 +32,9 @@
 
 | Shortcut | Action |
 |----------|--------|
-| `Enter` | When cursor is on a transaction header or posting line, the new line is auto-indented with 4 spaces (TAB is reserved for focus cycling) |
+| `Enter` | When cursor is on a transaction header (and **not** at column 0) or posting line, the new line is auto-indented with 4 spaces. At column 0 of a header, Enter inserts a plain newline (useful for adding blank lines between transactions). TAB is reserved for focus cycling. |
 | `Ctrl+G` | Duplicate the current transaction block to the end of the file with today's date |
+| `Ctrl+D` | Insert today's date at the cursor position |
 
 ## Text Navigation (custom bindings)
 

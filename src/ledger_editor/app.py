@@ -105,6 +105,16 @@ class LedgerApp(App[None]):
         """Refresh account balances whenever the journal is saved."""
         self.query_one(BalanceSidebar).refresh_balances()
 
+    def on_journal_editor_live_changed(
+        self, event: JournalEditor.LiveChanged
+    ) -> None:
+        """Refresh sidebars from in-memory text ~0.8 s after last keystroke."""
+        self.query_one(BalanceSidebar).refresh_from_text(event.text)
+        if event.account:
+            results = self.query(RegisterPanel)
+            if results:
+                results.first().refresh_account_from_text(event.text, event.account)
+
     def on_journal_editor_cursor_account_changed(
         self, event: JournalEditor.CursorAccountChanged
     ) -> None:
