@@ -1,11 +1,11 @@
 # CONTEXT.md — Session Working Memory
 
 ## Current Task
-v0.8.0 major refactor complete: balance sidebar, register panel, and all reconcile
-machinery removed; app is now a pure hledger text editor with a Ctrl+L view filter.
+v0.8.2 complete. Documentation and version bump committed and pushed.
 
 ## Where We Are
-All code complete and tests passing (175/175). Ready for UAT.
+All code changes done, tests passing. Version bumped to 0.8.2. README, ROADMAP,
+CHANGELOG updated. Changes committed and pushed to origin/master.
 
 ## Decisions In Flight
 None.
@@ -14,49 +14,47 @@ None.
 
 | File | Role |
 |---|---|
-| `src/ledger_editor/app.py` | LedgerApp — full-width JournalEditor, no right panel |
-| `src/ledger_editor/widgets/transaction_table.py` | JournalEditor — main editor, Ctrl+L filter, search |
-| `src/ledger_editor/widgets/view_filter_bar.py` | ViewFilterBar — 1-row filter status display |
-| `src/ledger_editor/widgets/search_bar.py` | SearchBar — now contains `_find_transaction_header_above` (moved from deleted reconcile_actions.py) |
-| `src/ledger_editor/widgets/ledger_textarea.py` | LedgerTextArea — syntax highlighting, search highlights |
-| `src/ledger_editor/widgets/filter_popup.py` | FilterPopup — Ctrl+Shift+P overlay (unchanged) |
-| `tests/test_view_filter.py` | 12 new tests for Ctrl+L filter feature |
+| `pyproject.toml` | Version bumped from 0.6.0 → 0.8.2 |
+| `README.md` | Rewritten: beta warning, accurate features, GitHub install with vendor/pyledger note |
+| `ROADMAP.md` | Rewritten: "What Is Shipped" summary, Window Panes Removed note, upcoming milestones |
+| `src/ledger_editor/widgets/ledger_textarea.py` | Removed `BINDINGS` class variable and `Binding` import (v0.8.2) |
+| `src/ledger_editor/themes/monokai_pro.tcss` | Added `SearchBar Input` and `SearchBar Input:focus` rules (v0.8.2) |
+| `src/ledger_editor/widgets/transaction_table.py` | Removed search-bar branch from `action_toggle_cleared` (v0.8.2) |
+| `src/ledger_editor/widgets/filter_popup.py` | Added `on_mount` to focus `#date-from` (v0.8.2) |
 
-## What Was Removed
-- `balance_sidebar.py`, `register_panel.py` — right panel widgets
-- `reconcile_bar.py`, `reconcile_summary.py`, `reconcile_actions.py` — reconcile machinery
-- `tests/test_balance_sidebar.py`, `tests/test_register_panel.py`
-- From transaction_table.py: ReconcileMixin, all _reconcile_* state, debounce timer,
-  LiveChanged, CursorAccountChanged, ReconcileModeEntered, ReconcileModeExited,
-  TransactionClearedToggled messages, Ctrl+I and Ctrl+Enter bindings
+## What Was Changed (v0.8.2 code)
 
-## What Was Added
-- `view_filter_bar.py`: ViewFilterBar widget (Ctrl+L mode indicator)
-- Ctrl+L binding + `action_cycle_view_filter()` in JournalEditor
-- `_apply_view_filter()`, `_merge_filtered_edits()` for snapshot/merge logic
-- `action_save()` merges filter before writing full journal
+1. **LedgerTextArea.BINDINGS removed** — The v0.8.1 addition used wrong action names and
+   shadowed JournalEditor's visible `ctrl+d` and `ctrl+f` bindings.
 
-## View Filter Design
-- Mode 0=All, 1=Cleared only, 2=Unreconciled only
-- `_filter_journal`: PyLedger Journal snapshot from when filter was entered
-- `_filter_visible_indices`: list[int] tracking which tx indices are visible
-- Merge strategy: slot-by-slot replacement, extend for additions, delete for removals
-- Ctrl+S while filtered: merge + restore All mode first, then save full journal
+2. **SearchBar Input CSS** — Added two monokai-pro-specific rules in `monokai_pro.tcss`
+   with higher specificity than the general Input and Input:focus rules. `border: none`
+   allows the 1-row height to display text without clipping.
 
-## Blockers / Open Questions
-None. Awaiting UAT.
+3. **Ctrl+R always toggles cleared** — Removed the `bar.display` search-bar check from
+   `action_toggle_cleared`. Ctrl+R no longer navigates search matches.
+
+4. **FilterPopup auto-focus** — Added `on_mount` to FilterPopup that focuses `#date-from`
+   on open. Ensures Escape routes to the popup's `close_self` binding.
+
+5. **FilterPopup Account field Enter** — Fixed as side-effect of #4.
+
+## What Was Changed (v0.8.2-meta docs)
+
+- `pyproject.toml` version `0.6.0` → `0.8.2`
+- `README.md` rewritten: beta warning, accurate feature list, GitHub install instructions
+- `ROADMAP.md` rewritten: replaces stale milestone checklist with current state
 
 ## What NOT To Revisit
-- ReconcileMixin / reconcile mode — deliberately removed by design
-- BalanceSidebar / RegisterPanel — deliberately removed by design
-- The 65%/35% split layout — replaced by full-width editor
+- ReconcileMixin / reconcile mode — deliberately removed in v0.8.0
+- BalanceSidebar / RegisterPanel — deliberately removed in v0.8.0
+- The 65%/35% split layout — replaced by full-width editor in v0.8.0
 
 ## Recent Git State
 ```
+(committed and pushed after v0.8.2 doc/meta changes)
 359114a feat: UAT round 2 fixes, Ctrl+D insert-date, scroll fix (v0.6.0)
-375beee feat: hledger syntax highlighting, Monokai Pro theme, UAT fixes (v0.5.0)
-4908d58 feat: scrollable register panel, 65% editor width (v0.4.0)
-463d5b8 fix: rebind toggle-cleared to Ctrl+R, block-select to Ctrl+T
-ee2b358 feat: UAT fixes — keybindings, navigation, focus cycle (v0.3.0)
 ```
-(All v0.7.x–v0.8.0 work is uncommitted)
+
+## Blockers / Open Questions
+None. Awaiting UAT of v0.8.2 code changes (search bar CSS fix in focus state).

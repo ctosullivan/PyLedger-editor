@@ -15,6 +15,27 @@ Format per entry:
 
 ---
 
+## [0.8.2-meta] — Version bump & documentation — 2026-05-17
+
+- Human: Bump version to 0.8.2 in pyproject.toml; update README to reflect current project state (no window panes, stub filter popup, beta warning, GitHub install instructions); update ROADMAP to reflect current architecture.
+- Claude: Bumped `pyproject.toml` version from `0.6.0` to `0.8.2`. Rewrote `README.md`: removed stale planned-features list; added early-beta / journal-corruption warning; accurate feature list (view filter, search, no sidebar/register panels); GitHub install instructions with explicit note that PyLedger must be installed from `vendor/pyledger/` (the PyPI package is a stub). Rewrote `ROADMAP.md`: replaced stale Milestone 1–4 checklist with accurate "What Is Shipped" summary, explicit "Window Panes Removed" section, and clean upcoming milestones (Transaction Filter, Autocomplete, Emacs date editing, Performance).
+
+---
+
+## [0.8.2] — UAT Fix Round — 2026-05-17
+
+- Human: UAT of v0.8.1 found five issues: command palette shows invisible commands (Insert date, Search) and still has `^` symbols; search bar input text still invisible; Ctrl+R with search bar open should toggle cleared not navigate matches; Escape only closes FilterPopup when popup has focus; FilterPopup Enter in Account field shows no notification.
+- Claude: Issue 1 — removed `LedgerTextArea.BINDINGS` entirely; the v0.8.1 approach was based on a wrong premise (TextArea built-ins are already all `show=False` in Textual 8.2.5); our added bindings for `ctrl+d` and `ctrl+f` were shadowing JournalEditor's visible bindings for those keys, making "Insert date" and "Search" invisible in the palette. Issue 2 — added `App.-theme-monokai-pro SearchBar Input { background: $panel; color: $foreground; border: none; }` to `monokai_pro.tcss`; the general `App.-theme-monokai-pro Input` rule (specificity 12) was overriding `SearchBar Input` in app.py (specificity 2) and applying `border: tall $boost` which clipped text within the 1-row height constraint. Issue 3 — removed the search-bar branch from `action_toggle_cleared` in `transaction_table.py`; Ctrl+R now always toggles cleared status. Issue 4 — added `on_mount` to `FilterPopup` that focuses `#date-from` on open, ensuring Escape is routed to the popup's own binding. Issue 5 — no additional code needed; was caused by the same focus problem as Issue 4. Updated `docs/shortcuts.md` and `knowledge_base/keybindings.md`.
+
+---
+
+## [0.8.1] — UAT Fix Round — 2026-05-17
+
+- Human: UAT of v0.8.0 found five issues: command palette shows mixed `^F` / `Ctrl+F` keybinding notation; search bar input text invisible; Ctrl+Shift+F intercepted by Windows Terminal (want Shift+PgUp/PgDown for search navigation when bar is open); Ctrl+Shift+P intercepted (FilterPopup); FilterPopup Enter does nothing. Also: remove "Esc Unfocus" from footer, rename Ctrl+L footer label to "Filter cleared".
+- Claude: Issue 1 — added `BINDINGS` class variable to `LedgerTextArea` that re-declares all TextArea built-in bindings with `show=False`; subclass BINDINGS take MRO precedence, suppressing them from the command palette and footer. Set `show=False` on `escape → blur_editor` in `JournalEditor.BINDINGS`. Renamed Ctrl+L description from "Filter view" to "Filter cleared". Issue 2 — added `background: $panel; color: $text; border: none;` to `SearchBar Input` CSS in `app.py`. Issue 3 — removed `ctrl+shift+f → search_prev` binding and `action_search_prev`; made `action_prev_transaction` and `action_next_transaction` context-sensitive: when search bar is open, they delegate to `bar.advance(direction=-1/+1)` instead of navigating transaction headers. Issue 4 — remapped FilterPopup from `ctrl+shift+p` to `ctrl+o` in `app.py` and `filter_popup.py`; updated title label. Issue 5 — added `on_input_submitted` handler to `FilterPopup` that shows an informational notification directing users to Ctrl+L. Updated `docs/shortcuts.md` and `knowledge_base/keybindings.md`.
+
+---
+
 ## [0.8.0] — Major Refactor: Pure Editor + View Filter — 2026-05-17
 
 - Human: Remove balance sidebar, register panel, and all reconcile-mode machinery. Make the app a pure hledger text editor. Replace reconcile mode with a Ctrl+L view filter that cycles the editor between All / Cleared / Unreconciled transactions.

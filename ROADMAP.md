@@ -1,74 +1,91 @@
 # Roadmap
 
-Milestones track the editor's development phases. A milestone is only marked
-`[DONE]` on explicit user instruction — never inferred by Claude.
+The project is in **early beta**. A milestone is only marked `[DONE]` on explicit
+user instruction — never inferred by Claude.
 
 ---
 
-## Milestone 0 — Initial Scaffold `[DONE — 2026-05-10]`
+## What Is Shipped (v0.8.2)
 
-- [x] Virtual environment and pinned dependencies (textual==8.2.5, pyledger==0.5)
-- [x] Sparse vendor checkout of PyLedger v0.5.0 (read-only)
-- [x] Project structure: src/, tests/, vendor/, knowledge_base/, docs/, dev-docs/
-- [x] Stub source files for all widgets, keybindings, utils
-- [x] pyproject.toml, requirements.txt, .gitignore
-- [x] CLAUDE.md, CONTEXT.md, CONTRIBUTING.md, CHANGELOG.md
-- [x] knowledge_base/ pre-populated from vendor source
-- [x] Initial pytest suite (structural smoke tests pass)
-- [x] git init + v0.0.1 tag
+The editor is a full-screen, keyboard-driven plain-text hledger journal editor.
 
-## Milestone 1 — Core Editing Surface
+**Editing surface**
+- Full-width `TextArea` editing surface (`JournalEditor`)
+- hledger syntax highlighting: dates, flags, payees, accounts, amounts, commodities,
+  comments, directives (20 token types)
+- Monokai Pro as default app theme; CSS-variable bridge enables runtime theme switching
+- Enter auto-indent on transaction header and posting lines
 
-- [ ] `TransactionTable` widget: render journal postings in a scrollable grid
-- [ ] In-place editing: date, description, account, amount fields
-- [ ] `BalanceSidebar` widget: tree-mode balance display via `balance(tree=True)`
-- [ ] `Ctrl+S`: sort by date + re-align whitespace + warn-and-save
-- [ ] `Shift+C`: 3-state cleared toggle (uncleared → pending → cleared)
-- [ ] Field navigation: `Ctrl+←/→` (next/prev field)
-- [ ] Transaction navigation: `Ctrl+↑/↓` (next/prev transaction block)
+**File operations**
+- `Ctrl+S` — sort by date, re-align whitespace, save; merges active view-filter
+  edits before writing
+- File-path bar with modified indicator
 
-## Milestone 2 — Keybindings & Autocomplete
+**Transaction editing**
+- `Ctrl+R` — 3-state cleared cycle (uncleared → pending `!` → cleared `*`);
+  bulk-toggle for multi-block selections (all cleared → all uncleared; otherwise → all `*`)
+- `Ctrl+G` — duplicate current transaction block to end of file with today's date;
+  multi-block selection duplicates all selected blocks
+- `Ctrl+D` — insert today's date at cursor
+- `Ctrl+T` — select current transaction block; repeated presses extend selection
 
-- [ ] Full MS Office keybinding set (Ctrl+A/C/V/X/D/F/R)
-- [ ] Full Emacs Ledger-mode keybinding set (Tab, Shift+Arrow, Alt+P/N, Ctrl+K)
-- [ ] Tab autocomplete from declared_accounts + all posting accounts
-- [ ] `Ctrl+D` autofill: duplicate once to bottom, date → today
-- [ ] `Alt+P` / `Alt+N`: previous/next matching transaction template
+**Navigation & search**
+- `Ctrl+F` — incremental search bar with match highlighting (`N of M` counter)
+- `Shift+PgUp / Shift+PgDown` — navigate previous/next transaction header; when
+  search bar is open, navigate previous/next match instead
+- `Ctrl+Home / Ctrl+End` — cursor to start/end of file
+- `Ctrl+A` — select all
 
-## Milestone 3 — True Filter Popup `[DONE — 2026-05-11]`
+**View filter**
+- `Ctrl+L` — cycle view: All transactions → Cleared only → Unreconciled only → All
+- Edits made in a filtered view are merged back into the full journal on save or
+  filter change
 
-The current `FilterPopup` (opened with `Ctrl+Shift+F`) is a UI stub only.
-`apply_filter()` is unimplemented. A true filter needs:
+**Other**
+- `Ctrl+O` — transaction filter popup (UI fields present; criteria filtering **not
+  yet implemented** — stub only; pressing Enter shows a notification directing users
+  to `Ctrl+L`)
+- `Ctrl+P` — command palette
 
-- [x] Read criteria from Input fields (date from/to, account glob, payee substring)
-- [x] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
-- [x] Call `PyLedger.load().register(query=Query(...))` with assembled criteria
-- [x] Display filtered results (dedicated results panel or filtered view)
-- [x] Forward / reverse search (`Ctrl+F` / `Ctrl+R`)
+---
 
-## Milestone 4 — Polish & Robustness
+## Window Panes — Removed in v0.8.0
 
-- [x] Full pytest suite with Textual test harness (pilot testing) — 178 tests
-- [x] Syntax highlighting: hledger token colouring (date, flag, payee, account,
-      amount, commodity, comments, directives) — `[DONE — 2026-05-11]`
-- [x] Monokai Pro as hardcoded default app theme with TCSS widget chrome overrides
-      — `[DONE — 2026-05-11]`
-- [x] Runtime theme switching: `app.theme = name` auto-updates TextArea colours
-      — `[DONE — 2026-05-11]`
-- [x] Block-level background overlays (cleared / pending / uncleared tinting)
-      — `[DONE — 2026-05-11]`
-- [x] Async balance refresh after every save
-- [x] Error/warning notification bar for validation failures
-- [ ] Command palette integration
-- [ ] Performance: large journals (10k+ transactions)
+The `BalanceSidebar` (account tree view), `RegisterPanel` (posting history), and all
+reconcile-mode machinery (`ReconcileMixin`, `ReconcileStatusBar`, `ReconcileSummary`,
+`ReconcileActions`) were removed in v0.8.0. The app is now a pure text editor with
+no side panels.
 
-## v0.7.0 — Search, Reconcile & Efficiency
+These features are not planned to return unless explicitly requested.
 
-- [ ] Incremental search bar (`Ctrl+F` / `Ctrl+Shift+F`, `F3`/`Shift+F3`, `Alt+F3`)
-- [ ] Match highlighting in editor (ledger.search.match / ledger.search.current spans)
-- [ ] File-path bar with modified indicator (`#file-path-bar`)
-- [ ] Reconciliation mode: `ReconcileMixin`, `ReconcileStatusBar`, `ReconcileSummary`
-- [ ] RegisterPanel `ContentSwitcher` (register ↔ reconcile summary)
-- [ ] Live-update debounce reduced to 250 ms; suppressed during reconcile
-- [ ] Register LRU cache keyed on `(path, account, mtime)`
-- [ ] Register pagination (PAGE_SIZE = 500, scroll-triggered load-more)
+---
+
+## Upcoming Milestones
+
+### Milestone A — Transaction Filter (Ctrl+O)
+
+The `FilterPopup` is a UI stub. `apply_filter()` is unimplemented.
+
+- [ ] Assemble `PyLedger.Query` from date-from, date-to, account, payee fields
+- [ ] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
+- [ ] Apply filter: show only matching transactions in the editor
+- [ ] Clear filter restores full journal
+
+### Milestone B — Autocomplete & Templates
+
+- [ ] Tab autocomplete from declared accounts + all posting accounts in the loaded journal
+- [ ] `Alt+P` / `Alt+N` — insert previous/next matching transaction template
+  (Emacs `ledger-mode` convention)
+
+### Milestone C — Emacs Ledger-mode Date Editing
+
+- [ ] `Shift+Up / Shift+Down` — increment/decrement date by one day
+- [ ] `Shift+Alt+Up / Shift+Alt+Down` — increment/decrement date by one month
+- [ ] `Ctrl+K` — delete to end of line
+
+### Milestone D — Performance & Polish
+
+- [ ] Large journal support (10 000+ transactions without UI lag)
+- [ ] Command palette: register all named actions
+- [ ] Configurable keybinding profiles (MS Office / Emacs Ledger-mode stubs are in
+  `src/ledger_editor/keybindings/`)
