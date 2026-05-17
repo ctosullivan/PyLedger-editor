@@ -49,7 +49,7 @@ ledger-editor path/to/my.journal
 
 ### Requirements
 
-- Python 3.11+
+- Python 3.00+
 - textual 8.2.5 (installed automatically via `pip install -e .`)
 - pyledger 0.5.0 (installed manually from `vendor/pyledger/` — see above)
 
