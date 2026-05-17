@@ -135,7 +135,7 @@ class JournalEditor(Widget):
         Binding("ctrl+g", "autofill", "Duplicate to end", key_display="Ctrl+G"),
         Binding("ctrl+d", "insert_today", "Insert date",
                 key_display="Ctrl+D", priority=True),
-        Binding("escape", "blur_editor", "Unfocus"),
+        Binding("escape", "blur_editor", "Unfocus", show=False),
         Binding("ctrl+t", "select_transaction_block", "Select transaction",
                 show=False, priority=True),
         Binding("shift+pageup", "prev_transaction", "Prev transaction",
@@ -153,10 +153,8 @@ class JournalEditor(Widget):
         # Ctrl+R: prev match when search bar visible, else toggle-cleared (see action_toggle_cleared).
         Binding("ctrl+f", "open_search", "Search",
                 key_display="Ctrl+F", priority=True),
-        Binding("ctrl+shift+f", "search_prev", "Prev match",
-                show=False, key_display="Ctrl+Shift+F", priority=True),
         # View filter — cycle All / Cleared / Unreconciled
-        Binding("ctrl+l", "cycle_view_filter", "Filter view",
+        Binding("ctrl+l", "cycle_view_filter", "Filter cleared",
                 key_display="Ctrl+L", show=True),
     ]
 
@@ -260,17 +258,9 @@ class JournalEditor(Widget):
     def action_toggle_cleared(self) -> None:
         """Cycle or bulk-toggle the cleared flag on transaction header(s).
 
-        When the search bar is visible, Ctrl+R acts as "previous match" instead.
-        In normal mode, single-transaction cycle is none → '!' → '*' → none;
-        multi-transaction bulk-toggles to * or none.
+        Single-transaction cycle: none → '!' → '*' → none.
+        Multi-transaction bulk-toggle: all cleared → all uncleared; otherwise → all '*'.
         """
-        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
-
-        bar = self.query_one("#search-bar", SearchBar)
-        if bar.display:
-            bar.advance(direction=-1)
-            return
-
         textarea = self.query_one("#journal_textarea", TextArea)
         sel = textarea.selection
         start_row = min(sel.start[0], sel.end[0])
@@ -382,14 +372,6 @@ class JournalEditor(Widget):
             bar.advance(direction=1)
         else:
             bar.open_bar()
-
-    def action_search_prev(self) -> None:
-        """Advance to the previous search match (Ctrl+Shift+F or Ctrl+R when bar open)."""
-        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
-
-        bar = self.query_one("#search-bar", SearchBar)
-        if bar.display:
-            bar.advance(direction=-1)
 
     # ------------------------------------------------------------------
     # Key actions — view filter
@@ -545,7 +527,13 @@ class JournalEditor(Widget):
         textarea.move_cursor((first_new_start, 0))
 
     def action_prev_transaction(self) -> None:
-        """Move cursor to the header of the previous transaction (Shift+PgUp)."""
+        """Move cursor to the previous transaction header, or prev search match if bar open."""
+        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        bar = self.query_one("#search-bar", SearchBar)
+        if bar.display:
+            bar.advance(direction=-1)
+            return
         textarea = self.query_one("#journal_textarea", LedgerTextArea)
         row, _ = textarea.cursor_location
         line_infos = textarea._highlighter._line_infos
@@ -555,7 +543,13 @@ class JournalEditor(Widget):
                 return
 
     def action_next_transaction(self) -> None:
-        """Move cursor to the header of the next transaction (Shift+PgDown)."""
+        """Move cursor to the next transaction header, or next search match if bar open."""
+        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        bar = self.query_one("#search-bar", SearchBar)
+        if bar.display:
+            bar.advance(direction=1)
+            return
         textarea = self.query_one("#journal_textarea", LedgerTextArea)
         row, _ = textarea.cursor_location
         line_infos = textarea._highlighter._line_infos

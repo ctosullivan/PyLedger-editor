@@ -52,6 +52,18 @@ App.-theme-monokai-pro Input:focus {
     border: tall $primary;
 }
 
+App.-theme-monokai-pro SearchBar Input {
+    background: $panel;
+    color: $foreground;
+    border: none;
+}
+
+App.-theme-monokai-pro SearchBar Input:focus {
+    background: $panel;
+    color: $foreground;
+    border: none;
+}
+
 App.-theme-monokai-pro DataTable {
     background: $background;
     color: $foreground;

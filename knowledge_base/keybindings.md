@@ -13,25 +13,24 @@ binding conflicts and identify free keys.
 | Key | Action | priority=True | Notes |
 |---|---|---|---|
 | `Ctrl+S` | save | — | Sort + save journal to disk; merges filtered view edits first |
-| `Ctrl+R` | toggle_cleared | — | Context-sensitive: **search bar open** → prev match; **normal** → 3-state cycle |
+| `Ctrl+R` | toggle_cleared | — | 3-state cycle (uncleared → `!` → `*` → uncleared); multi-block selection bulk-toggles |
 | `Ctrl+G` | autofill | — | Single cursor → duplicate current block; multi-block selection → duplicate all selected blocks |
 | `Ctrl+D` | insert_today | ✓ | Overrides TextArea `delete_right` |
 | `Escape` | blur_editor | — | Unfocus TextArea (or close search bar) |
 | `Ctrl+T` | select_transaction_block | ✓ | Block-select current transaction; repeated presses extend to next block |
-| `Shift+PageUp` | prev_transaction | ✓ | Jump to previous transaction header |
-| `Shift+PageDown` | next_transaction | ✓ | Jump to next transaction header |
+| `Shift+PageUp` | prev_transaction | ✓ | Jump to previous transaction header. **Search bar open**: jump to previous match instead. |
+| `Shift+PageDown` | next_transaction | ✓ | Jump to next transaction header. **Search bar open**: jump to next match instead. |
 | `Ctrl+Home` | cursor_to_start | ✓ | Move cursor to top of file |
 | `Ctrl+End` | cursor_to_end | ✓ | Move cursor to bottom of file |
 | `Ctrl+A` | select_all | ✓ | Select entire file content |
 | `Ctrl+F` | open_search | ✓ | Opens bar if closed; advances to next match if bar already open. **priority=True required** — TextArea maps Ctrl+F → `delete_word_right` |
-| `Ctrl+Shift+F` | search_prev | ✓ | Previous match (bar must be open). May be intercepted by Windows Terminal Find |
 | `Ctrl+L` | cycle_view_filter | — | Cycle view: All → Cleared → Unreconciled → All |
 
 ### FilterPopup (`filter_popup.py`)
 
 | Key | Action | priority=True | Notes |
 |---|---|---|---|
-| `Ctrl+Shift+P` | close_self | ✓ | Close popup (same key that opened it) |
+| `Ctrl+O` | close_self | ✓ | Close popup (same key that opened it) |
 | `Escape` | close_self | ✓ | Close popup |
 
 ### SearchBar (`search_bar.py`)
@@ -118,18 +117,19 @@ Windows Terminal intercepts (at winui level, never reach the Textual app):
 
 | Key | Windows Terminal default | Project impact |
 |---|---|---|
-| `Ctrl+Shift+P` | Command palette | FilterPopup may not open in Windows Terminal |
-| `Ctrl+Shift+F` | Find bar | search_prev may not work; use Ctrl+R as fallback for prev-match |
+| `Ctrl+Shift+P` | Command palette | No longer used by the app |
 
 ---
 
-## 4. Free Ctrl+ Keys (as of v0.8.0)
+## 4. Free Ctrl+ Keys (as of v0.9.0)
 
 These keys have no TextArea binding AND no project binding. Safe to add new
 actions without `priority=True`:
 
 `Ctrl+B`, `Ctrl+E`, `Ctrl+H`, `Ctrl+I`, `Ctrl+J`, `Ctrl+M`,
-`Ctrl+N`, `Ctrl+O`, `Ctrl+P`, `Ctrl+Q`*
+`Ctrl+N`, `Ctrl+P`, `Ctrl+Q`*
+
+`Ctrl+O` is now bound to the FilterPopup toggle.
 
 Function keys (all free):
 `F1`–`F12`
@@ -159,8 +159,8 @@ Binding("ctrl+f", "open_search", "Search", priority=True)
 ```
 
 All JournalEditor bindings that shadow TextArea built-ins must carry
-`priority=True`. The full list as of v0.8.0: `ctrl+d`, `ctrl+f`,
-`ctrl+shift+f`, `ctrl+t`, `shift+pageup`, `shift+pagedown`,
+`priority=True`. The full list as of v0.9.0: `ctrl+d`, `ctrl+f`,
+`ctrl+t`, `shift+pageup`, `shift+pagedown`,
 `ctrl+home`, `ctrl+end`, `ctrl+a`.
 
 ---

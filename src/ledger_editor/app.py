@@ -39,8 +39,8 @@ class LedgerApp(App[None]):
     COMMAND_PALETTE_DISPLAY: ClassVar[str] = "Ctrl+P"
     CSS_PATH = ["themes/monokai_pro.tcss"]
     BINDINGS = [
-        Binding("ctrl+shift+p", "toggle_filter", "Filter",
-                priority=True, key_display="Ctrl+Shift+P"),
+        Binding("ctrl+o", "toggle_filter", "Filter transactions",
+                priority=True, key_display="Ctrl+O"),
     ]
     CSS = """
     Screen {
@@ -76,6 +76,9 @@ class LedgerApp(App[None]):
     SearchBar Input {
         width: 1fr;
         height: 1;
+        background: $panel;
+        color: $text;
+        border: none;
     }
     SearchBar #match-counter {
         width: auto;

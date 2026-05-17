@@ -30,7 +30,7 @@ class FilterPopup(Widget):
     """
 
     BINDINGS = [
-        Binding("ctrl+shift+p", "close_self", "Close filter", show=False, priority=True),
+        Binding("ctrl+o", "close_self", "Close filter", show=False, priority=True),
         Binding("escape", "close_self", "Close filter", show=False, priority=True),
     ]
 
@@ -48,7 +48,7 @@ class FilterPopup(Widget):
 
     def compose(self) -> ComposeResult:
         """Render filter input fields."""
-        yield Label("Transaction Filter  (Ctrl+Shift+P to close)", id="filter-title")
+        yield Label("Transaction Filter  (Ctrl+O to close)", id="filter-title")
         yield Label("Date from:")
         yield Input(placeholder="e.g. last month / 2024-01-01 / ytd", id="date-from")
         yield Label("Date to:")
@@ -58,14 +58,26 @@ class FilterPopup(Widget):
         yield Label("Payee:")
         yield Input(placeholder="substring match", id="payee")
 
+    def on_mount(self) -> None:
+        """Focus the first input field so Escape and keyboard entry work immediately."""
+        self.query_one("#date-from", Input).focus()
+
     def action_close_self(self) -> None:
         """Remove the popup (Ctrl+Shift+F toggle or Escape)."""
         self.remove()
 
-    def apply_filter(self) -> None:
-        """Read field values, build a PyLedger.Query, and post to TransactionTable.
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Notify user that criteria filtering is not yet implemented."""
+        self.app.notify(
+            "Criteria filtering not yet implemented — use Ctrl+L to cycle "
+            "All / Cleared / Unreconciled view.",
+            severity="information",
+            timeout=5,
+        )
 
-        Date strings are parsed by date_parser.parse_date(). Posts a message
-        to the TransactionTable to trigger a filtered re-render.
+    def apply_filter(self) -> None:
+        """Read field values, build a PyLedger.Query, and post to JournalEditor.
+
+        Not yet implemented — deferred to a future milestone.
         """
         # TODO: implement Query assembly and message dispatch

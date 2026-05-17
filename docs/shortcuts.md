@@ -5,15 +5,15 @@
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+S` | Save: merge any active filter view, sort transactions by date, re-align whitespace, then write (validation errors shown as warnings, do not block save) |
-| `Ctrl+Shift+P` | Open / close transaction filter popup |
+| `Ctrl+O` | Open / close transaction filter popup |
 
 ## Search
 
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+F` | Open search bar (if closed), or jump to **next** match (if bar already open) |
-| `Ctrl+Shift+F` | Jump to **previous** match (bar must be open) |
-| `Ctrl+R` | Jump to **previous** match when the search bar is open; otherwise toggles cleared state |
+| `Shift+PgDown` | Jump to **next** match (when search bar is open); otherwise jump to next transaction header |
+| `Shift+PgUp` | Jump to **previous** match (when search bar is open); otherwise jump to previous transaction header |
 | `Escape` | Close search bar (or unfocus editor) |
 
 Search requires at least 2 characters. Matches are highlighted in the editor: dim background for all matches, bright background for the current match. The counter shows "N of M" (or "No matches").
@@ -36,7 +36,7 @@ The view filter changes what the editor shows without hiding any data from disk:
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+R` | **Normal mode, single transaction**: 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared. **Multi-transaction selection**: if all selected are cleared → all become uncleared; otherwise → all become cleared (`*`). **Search bar open**: jumps to previous match instead. |
+| `Ctrl+R` | **Single transaction**: 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared. **Multi-transaction selection**: if all selected are cleared → all become uncleared; otherwise → all become cleared (`*`). |
 
 ## Panel Focus Cycling
 
@@ -50,8 +50,8 @@ The view filter changes what the editor shows without hiding any data from disk:
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+T` | First press: select the current transaction block. Each subsequent press: extend the selection by one more transaction block. |
-| `Shift+PgUp` | Move cursor to the header line of the previous transaction |
-| `Shift+PgDown` | Move cursor to the header line of the next transaction |
+| `Shift+PgUp` | Move cursor to the header line of the previous transaction. **When search bar is open**: jump to previous match instead. |
+| `Shift+PgDown` | Move cursor to the header line of the next transaction. **When search bar is open**: jump to next match instead. |
 
 ## Text Editing
 
@@ -100,8 +100,7 @@ natively — arrow keys, `Home`/`End`, `Ctrl+←/→` (word jump), `PgUp`/`PgDn`
 |----------|----------|-------|
 | `Ctrl+C` | SIGINT (many terminals) | May need remapping in terminal settings |
 | `Ctrl+K` | Some terminal emulators use for clear-line | Documented; handle gracefully |
-| `Ctrl+Shift+P` | Windows Terminal command palette | FilterPopup binding — may be intercepted |
-| `Ctrl+Shift+F` | Windows Terminal Find bar | May be intercepted; use `Ctrl+R` as fallback for prev-match |
+| `Ctrl+Shift+P` | Windows Terminal command palette | No longer used by the app |
 
 See [knowledge_base/design_decisions.md](../knowledge_base/design_decisions.md)
 for the full conflict log and resolutions.
