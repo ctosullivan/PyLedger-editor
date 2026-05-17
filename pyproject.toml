@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ledger-editor"
 version = "0.8.2"
-requires-python = ">=3.11"
+requires-python = ">=3.00"
 dependencies = [
     "textual==8.2.5",
     # PyLedger is installed from vendor/pyledger/ in editable mode (pip install -e vendor/pyledger/).

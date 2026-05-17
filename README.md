@@ -36,9 +36,11 @@ python -m venv .venv
 
 # PyLedger must be installed from the vendor checkout —
 # the 'pyledger' package on PyPI is a stub and will not work.
+pip install --upgrade pip
 pip install -e vendor/pyledger/
 
 # Install Ledger Editor and its remaining dependencies
+pip install textual==8.2.5 pytest pytest-asyncio
 pip install -e .
 
 # Launch
