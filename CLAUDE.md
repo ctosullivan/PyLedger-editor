@@ -185,8 +185,14 @@ ledger-editor/
 │   ├── app.py                   — LedgerApp (Textual App subclass)
 │   ├── widgets/
 │   │   ├── balance_sidebar.py   — BalanceSidebar widget
-│   │   ├── transaction_table.py — TransactionTable widget (main editing surface)
-│   │   └── filter_popup.py     — FilterPopup overlay (Ctrl+Shift+F)
+│   │   ├── transaction_table.py — JournalEditor widget (main editing surface)
+│   │   ├── ledger_textarea.py   — LedgerTextArea subclass (syntax + search highlights)
+│   │   ├── search_bar.py        — SearchBar widget (Ctrl+F incremental search)
+│   │   ├── reconcile_actions.py — ReconcileMixin + pure reconcile helpers
+│   │   ├── reconcile_bar.py     — ReconcileStatusBar (shown during reconcile mode)
+│   │   ├── reconcile_summary.py — ReconcileSummary (RegisterPanel reconcile view)
+│   │   ├── register_panel.py    — RegisterPanel with ContentSwitcher
+│   │   └── filter_popup.py      — FilterPopup overlay (Ctrl+Shift+P)
 │   ├── keybindings/
 │   │   ├── office.py            — MS Office / Excel convention stubs
 │   │   └── emacs_ledger.py      — Emacs Ledger-mode convention stubs
@@ -194,7 +200,7 @@ ledger-editor/
 │   └── utils/
 │       ├── date_parser.py       — smart date parsing
 │       ├── ledger_io.py         — load/save via PyLedger
-│       └── file_resolver.py    — journal file resolution
+│       └── file_resolver.py     — journal file resolution
 ├── tests/
 ├── vendor/pyledger/             — READ-ONLY sparse checkout of PyLedger v0.5.0
 ├── knowledge_base/              — project-specific knowledge

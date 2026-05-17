@@ -103,5 +103,8 @@ MONOKAI_PRO_TEXTAREA_THEME = TextAreaTheme(
         "ledger.comment": Style(color=_COMMENT),   # accessibility-adjusted
         "ledger.directive": Style(color=_CYAN),
         "ledger.directive.arg": Style(color=_FG),
+        # Search highlight tokens (Ctrl+F)
+        "ledger.search.match": Style(bgcolor="#4D4426"),      # dim Monokai yellow
+        "ledger.search.current": Style(bgcolor=_YELLOW, color=_BG, bold=True),
     },
 )

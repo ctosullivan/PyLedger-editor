@@ -1,8 +1,7 @@
 """Root Textual application for the ledger editor.
 
-Composes the main layout: JournalEditor (text editing surface, left) and a
-right panel containing BalanceSidebar (top) and RegisterPanel (bottom).
-FilterPopup overlays on demand via Ctrl+Shift+F.
+Composes the main layout: a file-path bar below the Header, then JournalEditor
+(full-width editing surface). FilterPopup overlays on demand via Ctrl+Shift+P.
 """
 
 from __future__ import annotations
@@ -21,118 +20,119 @@ if _VENDOR.exists() and str(_VENDOR) not in sys.path:
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.widgets import Footer, Header
+from textual.css.query import NoMatches
+from textual.widgets import Footer, Header, Static
 
 from ledger_editor.themes import register_all
 from ledger_editor.themes.monokai_pro import THEME_NAME
 from ledger_editor.utils.file_resolver import resolve_journal_file
-from ledger_editor.widgets.balance_sidebar import BalanceSidebar
 from ledger_editor.widgets.filter_popup import FilterPopup
-from ledger_editor.widgets.ledger_textarea import LedgerTextArea
-from ledger_editor.widgets.register_panel import RegisterPanel
 from ledger_editor.widgets.transaction_table import JournalEditor
 
 __all__ = ["LedgerApp", "main"]
 
 
 class LedgerApp(App[None]):
-    """Top-level Textual application for the plain-text ledger editor.
-
-    Keyboard bindings are split across two mixin modules:
-    - ledger_editor.keybindings.office   (MS Office / Excel conventions)
-    - ledger_editor.keybindings.emacs_ledger (Emacs Ledger-mode conventions)
-
-    Both are wired up in the CSS binding declarations; the action handlers
-    live in those modules and are composed into this class via mixins once
-    implemented.
-    """
+    """Top-level Textual application for the plain-text ledger editor."""
 
     TITLE = "Ledger Editor"
     COMMAND_PALETTE_DISPLAY: ClassVar[str] = "Ctrl+P"
     CSS_PATH = ["themes/monokai_pro.tcss"]
     BINDINGS = [
-        Binding("ctrl+shift+f", "toggle_filter", "Filter", priority=True, key_display="Ctrl+Shift+F"),
+        Binding("ctrl+shift+p", "toggle_filter", "Filter",
+                priority=True, key_display="Ctrl+Shift+P"),
     ]
     CSS = """
     Screen {
         layout: horizontal;
     }
+    #file-path-bar {
+        dock: top;
+        height: 1;
+        background: $surface;
+        color: $text-muted;
+        padding: 0 1;
+    }
     JournalEditor {
-        width: 65%;
+        width: 1fr;
+        layout: vertical;
     }
-    #right_panel {
-        width: 35%;
-        min-width: 40;
-        border-left: solid $primary;
+    ViewFilterBar {
+        dock: top;
+        height: 1;
+        background: $surface;
+        color: $text-muted;
+        padding: 0 1;
     }
-    BalanceSidebar {
-        height: 1fr;
-        border-bottom: solid $primary;
+    SearchBar {
+        dock: bottom;
+        height: 3;
+        background: $surface;
+        border-top: solid $primary;
+        display: none;
+        layout: horizontal;
+        padding: 0 1;
     }
-    RegisterPanel {
-        height: 1fr;
+    SearchBar Input {
+        width: 1fr;
+        height: 1;
+    }
+    SearchBar #match-counter {
+        width: auto;
+        padding: 0 1;
+        color: $text-muted;
+    }
+    SearchBar Button {
+        width: auto;
+        min-width: 3;
+        height: 1;
     }
     """
 
     def __init__(self, journal_path: Path) -> None:
-        """Initialise the app with a resolved journal file path.
-
-        Args:
-            journal_path: Absolute path to the .journal or .ledger file to edit.
-        """
+        """Initialise the app with a resolved journal file path."""
         super().__init__()
         self.journal_path = journal_path
 
     def on_mount(self) -> None:
-        """Register bundled themes and activate Monokai Pro as the default."""
+        """Register bundled themes, activate Monokai Pro, and populate file-path bar."""
+        from ledger_editor.widgets.ledger_textarea import LedgerTextArea  # noqa: PLC0415
+
         editor = self.query_one(JournalEditor)
         ledger_textarea = editor.query_one("#journal_textarea", LedgerTextArea)
         register_all(self, ledger_textarea)
         if os.environ.get("TEXTUAL_THEME") is None:
             self.theme = THEME_NAME
+        self._update_file_path_bar(modified=False)
 
     def compose(self) -> ComposeResult:
         """Build the initial widget tree."""
         yield Header()
+        yield Static("", id="file-path-bar")
         yield JournalEditor(self.journal_path)
-        with Vertical(id="right_panel"):
-            yield BalanceSidebar(self.journal_path)
-            yield RegisterPanel(self.journal_path)
         yield Footer()
 
-    def on_journal_editor_save_completed(self) -> None:
-        """Refresh account balances whenever the journal is saved."""
-        self.query_one(BalanceSidebar).refresh_balances()
+    def _update_file_path_bar(self, modified: bool) -> None:
+        """Refresh the path bar label, appending '· modified' when unsaved."""
+        path_str = str(Path(self.journal_path).resolve())
+        text = f"{path_str}  ·  modified" if modified else path_str
+        try:
+            self.query_one("#file-path-bar", Static).update(text)
+        except NoMatches:
+            pass
 
-    def on_journal_editor_live_changed(
-        self, event: JournalEditor.LiveChanged
-    ) -> None:
-        """Refresh sidebars from in-memory text ~0.8 s after last keystroke."""
-        self.query_one(BalanceSidebar).refresh_from_text(event.text)
-        if event.account:
-            results = self.query(RegisterPanel)
-            if results:
-                results.first().refresh_account_from_text(event.text, event.account)
+    # ------------------------------------------------------------------
+    # Message handlers
+    # ------------------------------------------------------------------
 
-    def on_journal_editor_cursor_account_changed(
-        self, event: JournalEditor.CursorAccountChanged
+    def on_journal_editor_file_modified_changed(
+        self, event: JournalEditor.FileModifiedChanged
     ) -> None:
-        """Update the register panel when the cursor moves to a new account."""
-        results = self.query(RegisterPanel)
-        if results:
-            results.first().show_account(event.account)
-
-    def on_balance_sidebar_account_selected(
-        self, event: BalanceSidebar.AccountSelected
-    ) -> None:
-        """Update the register panel when the user selects an account in the sidebar."""
-        results = self.query(RegisterPanel)
-        if results:
-            results.first().show_account(event.account)
+        """Update the file-path bar with the modified indicator."""
+        self._update_file_path_bar(modified=event.modified)
 
     def action_toggle_filter(self) -> None:
-        """Open or close the transaction filter popup (Ctrl+Shift+F)."""
+        """Open or close the transaction filter popup (Ctrl+Shift+P)."""
         existing = self.query(FilterPopup)
         if existing:
             existing.first().remove()
@@ -156,11 +156,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Entry point wired up in pyproject.toml [project.scripts].
-
-    Resolves the journal file via CLI argument → $LEDGER_FILE → ~/.hledger.journal
-    → interactive prompt, then launches the Textual app.
-    """
+    """Entry point wired up in pyproject.toml [project.scripts]."""
     args = _parse_args(argv)
     journal_path = resolve_journal_file(args.file)
     if journal_path is None:

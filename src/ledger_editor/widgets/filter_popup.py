@@ -1,4 +1,4 @@
-"""Transaction filter popup overlay (Ctrl+Shift+F).
+"""Transaction filter popup overlay (Ctrl+Shift+P).
 
 Provides date-range, account-glob, payee-substring, and amount-range filters.
 Applies to the TransactionTable without closing the popup. Smart date parsing
@@ -18,8 +18,8 @@ __all__ = ["FilterPopup"]
 class FilterPopup(Widget):
     """Overlay widget for filtering the transaction view.
 
-    Triggered by Ctrl+Shift+F. Stays visible while active so the user can
-    adjust filters interactively. Closed by a second Ctrl+Shift+F or Escape.
+    Triggered by Ctrl+Shift+P. Stays visible while active so the user can
+    adjust filters interactively. Closed by a second Ctrl+Shift+P or Escape.
 
     Fields:
         date_from / date_to : Smart date strings ("last month", "ytd", "q1",
@@ -30,7 +30,7 @@ class FilterPopup(Widget):
     """
 
     BINDINGS = [
-        Binding("ctrl+shift+f", "close_self", "Close filter", show=False, priority=True),
+        Binding("ctrl+shift+p", "close_self", "Close filter", show=False, priority=True),
         Binding("escape", "close_self", "Close filter", show=False, priority=True),
     ]
 
@@ -48,7 +48,7 @@ class FilterPopup(Widget):
 
     def compose(self) -> ComposeResult:
         """Render filter input fields."""
-        yield Label("Transaction Filter  (Ctrl+Shift+F to close)", id="filter-title")
+        yield Label("Transaction Filter  (Ctrl+Shift+P to close)", id="filter-title")
         yield Label("Date from:")
         yield Input(placeholder="e.g. last month / 2024-01-01 / ytd", id="date-from")
         yield Label("Date to:")

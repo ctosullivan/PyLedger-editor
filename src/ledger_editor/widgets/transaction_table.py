@@ -1,8 +1,9 @@
 """Main editing surface: a full-text editor for hledger journal files.
 
-Shows raw journal text in a TextArea. Recognises transaction header and
-posting lines at the cursor position to drive the register panel via
-CursorAccountChanged messages.
+Shows raw journal text in a LedgerTextArea. Ctrl+L cycles the editor view
+between All, Cleared, and Unreconciled transactions without leaving the editor.
+Search bar (Ctrl+F) is implemented in SearchBar (search_bar.py). View filter bar
+is implemented in ViewFilterBar (view_filter_bar.py).
 """
 
 from __future__ import annotations
@@ -18,13 +19,7 @@ from textual.widgets import TextArea
 
 from ledger_editor.highlighting.highlighter import LineKind
 from ledger_editor.widgets.ledger_textarea import LedgerTextArea
-
-# Imported lazily at runtime to avoid depending on Textual internals at import time.
-# Used only for the type annotation of _refresh_timer.
-try:
-    from textual.timer import Timer as _Timer
-except ImportError:
-    _Timer = object  # type: ignore[assignment,misc]
+from ledger_editor.widgets.view_filter_bar import ViewFilterBar
 
 __all__ = ["JournalEditor"]
 
@@ -126,9 +121,9 @@ def _find_transaction_block(lines: list[str], row: int) -> tuple[int, int]:
 class JournalEditor(Widget):
     """Full-text editor for hledger journal files.
 
-    Loads the raw journal file into a TextArea. Recognises transaction header
-    and posting lines at the cursor to post CursorAccountChanged messages.
-    Ctrl+S validates, sorts transactions by date, and writes back to disk.
+    Loads the raw journal file into a LedgerTextArea. Ctrl+S validates, sorts
+    by date, and writes back to disk. Ctrl+F opens the incremental search bar.
+    Ctrl+L cycles the view filter (All / Cleared / Unreconciled).
 
     Args:
         journal_path: Absolute path to the journal file being edited.
@@ -153,38 +148,48 @@ class JournalEditor(Widget):
                 show=False, priority=True),
         Binding("ctrl+a", "select_all", "Select all",
                 show=False, priority=True),
+        # Search — Ctrl+F: open bar if closed, else next match (priority=True overrides
+        # TextArea's ctrl+f → delete_word_right). Ctrl+Shift+F: prev match.
+        # Ctrl+R: prev match when search bar visible, else toggle-cleared (see action_toggle_cleared).
+        Binding("ctrl+f", "open_search", "Search",
+                key_display="Ctrl+F", priority=True),
+        Binding("ctrl+shift+f", "search_prev", "Prev match",
+                show=False, key_display="Ctrl+Shift+F", priority=True),
+        # View filter — cycle All / Cleared / Unreconciled
+        Binding("ctrl+l", "cycle_view_filter", "Filter view",
+                key_display="Ctrl+L", show=True),
     ]
 
     DEFAULT_CSS = """
     JournalEditor {
         layout: vertical;
     }
-    JournalEditor > TextArea {
+    JournalEditor > LedgerTextArea {
         height: 1fr;
     }
     """
 
+    # ------------------------------------------------------------------
+    # Message classes
+    # ------------------------------------------------------------------
+
     class SaveCompleted(Message):
-        """Posted after a successful Ctrl+S save so the balance sidebar can refresh."""
+        """Posted after a successful Ctrl+S save."""
 
-    class CursorAccountChanged(Message):
-        """Posted when the account under the text cursor changes (or becomes None)."""
+    class FileModifiedChanged(Message):
+        """Posted when the modified state of the editor changes.
 
-        def __init__(self, account: str | None) -> None:
-            super().__init__()
-            self.account = account
-
-    class LiveChanged(Message):
-        """Posted ~0.8 s after the last keystroke so sidebars can refresh from memory.
-
-        Carries the current in-memory text and active account so callers can
-        parse and re-render without a disk read.
+        Carries modified=True when the text differs from the last saved state,
+        modified=False immediately after a Ctrl+S save.
         """
 
-        def __init__(self, text: str, account: str | None) -> None:
+        def __init__(self, modified: bool) -> None:
             super().__init__()
-            self.text = text
-            self.account = account
+            self.modified = modified
+
+    # ------------------------------------------------------------------
+    # Initialisation
+    # ------------------------------------------------------------------
 
     def __init__(self, journal_path: Path) -> None:
         """Initialise with the resolved absolute journal file path.
@@ -195,60 +200,79 @@ class JournalEditor(Widget):
         super().__init__()
         self.journal_path = journal_path
         self._current_account: str | None = None
-        self._refresh_timer: _Timer | None = None  # type: ignore[type-arg]
+        self._last_saved_text: str = ""
+        # View filter state
+        self._view_filter_mode: int = 0          # 0=All, 1=Cleared, 2=Unreconciled
+        self._filter_journal: object | None = None
+        self._filter_visible_indices: list[int] = []
 
     def compose(self) -> ComposeResult:
-        """Render a full-height LedgerTextArea for journal editing."""
+        """Render ViewFilterBar, LedgerTextArea, and hidden SearchBar."""
+        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        yield ViewFilterBar()
         yield LedgerTextArea(id="journal_textarea", show_line_numbers=True)
+        yield SearchBar(id="search-bar")
 
     def on_mount(self) -> None:
-        """Load the raw journal text into the TextArea on first render."""
+        """Load the raw journal text into the TextArea and focus it."""
         import PyLedger  # noqa: PLC0415
 
         doc = PyLedger.EditorDocument(str(self.journal_path))
-        self.query_one("#journal_textarea", TextArea).load_text("\n".join(doc.lines))
+        text = "\n".join(doc.lines)
+        textarea = self.query_one("#journal_textarea", TextArea)
+        textarea.load_text(text)
+        self._last_saved_text = text
+        textarea.focus()
 
     # ------------------------------------------------------------------
     # Cursor tracking
     # ------------------------------------------------------------------
 
     def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
-        """Detect account-name changes as the cursor moves through the text."""
-        new_account = _account_at_cursor(event.text_area)
-        if new_account != self._current_account:
-            self._current_account = new_account
-            self.post_message(self.CursorAccountChanged(new_account))
+        """Track the account name at the cursor as it moves."""
+        self._current_account = _account_at_cursor(event.text_area)
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        """Debounce content edits and post LiveChanged for live sidebar refresh."""
-        if self._refresh_timer is not None:
-            self._refresh_timer.stop()
-        self._refresh_timer = self.set_timer(0.8, self._post_live_change)
+        """Post FileModifiedChanged whenever the text content changes."""
+        self._update_modified_indicator()
 
-    def _post_live_change(self) -> None:
-        """Fire LiveChanged with the current in-memory text."""
-        self._refresh_timer = None
+    def _update_modified_indicator(self) -> None:
+        """Post FileModifiedChanged with the current modified state."""
         textarea = self.query_one("#journal_textarea", TextArea)
-        self.post_message(self.LiveChanged(text=textarea.text, account=self._current_account))
+        modified = textarea.text != self._last_saved_text
+        self.post_message(self.FileModifiedChanged(modified=modified))
 
     # ------------------------------------------------------------------
-    # Key actions
+    # Key actions — file operations
     # ------------------------------------------------------------------
 
     def action_blur_editor(self) -> None:
-        """Return focus to the parent app on Escape."""
+        """Escape: dismiss search bar if open, else unfocus."""
+        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        search_bar = self.query_one("#search-bar", SearchBar)
+        if search_bar.display:
+            search_bar.dismiss()
+            return
         self.app.set_focus(None)
 
     def action_toggle_cleared(self) -> None:
         """Cycle or bulk-toggle the cleared flag on transaction header(s).
 
-        Single transaction (no spanning selection): cycle none → '!' → '*' → none.
-        Multi-transaction selection: if all headers are cleared ('*') remove all flags,
-        otherwise set all headers to '*'.
+        When the search bar is visible, Ctrl+R acts as "previous match" instead.
+        In normal mode, single-transaction cycle is none → '!' → '*' → none;
+        multi-transaction bulk-toggles to * or none.
         """
+        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        bar = self.query_one("#search-bar", SearchBar)
+        if bar.display:
+            bar.advance(direction=-1)
+            return
+
         textarea = self.query_one("#journal_textarea", TextArea)
         sel = textarea.selection
-        # Normalize: selection can run bottom-to-top when the user drags upward.
         start_row = min(sel.start[0], sel.end[0])
         end_row = max(sel.start[0], sel.end[0])
         if end_row > start_row:
@@ -301,64 +325,22 @@ class JournalEditor(Widget):
             new_line = " ".join(parts)
             textarea.replace(new_line, (r, 0), (r, len(lines[r])))
 
-    def action_autofill(self) -> None:
-        """Duplicate the current transaction block to the end of the file (Ctrl+D).
-
-        Copies every line of the transaction block at the cursor, replaces the date
-        in the header with today's date, appends the block after a blank separator,
-        and moves the cursor to the start of the new block.
-        """
-        from datetime import date as _date  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", TextArea)
-        row, _ = textarea.cursor_location
-        lines = textarea.text.splitlines()
-        if not lines:
-            return
-        start_row, end_row = _find_transaction_block(lines, row)
-        block_lines = list(lines[start_row : end_row + 1])
-
-        m = _TXN_HEADER_RE.match(block_lines[0])
-        if m:
-            today = _date.today().isoformat()
-            block_lines[0] = today + block_lines[0][len(m.group(1)):]
-
-        new_block = "\n".join(block_lines)
-        current_text = textarea.text.rstrip("\n")
-        new_text = current_text + "\n\n" + new_block + "\n"
-        textarea.load_text(new_text)
-
-        new_lines = new_text.splitlines()
-        new_start = len(new_lines) - len(block_lines)
-        textarea.move_cursor((new_start, 0))
-
-    def action_prev_transaction(self) -> None:
-        """Move cursor to the header of the previous transaction (Shift+PgUp)."""
-        textarea = self.query_one("#journal_textarea", LedgerTextArea)
-        row, _ = textarea.cursor_location
-        line_infos = textarea._highlighter._line_infos
-        for i in range(row - 1, -1, -1):
-            if i < len(line_infos) and line_infos[i].kind == LineKind.XACT_HEADER:
-                textarea.move_cursor((i, 0))
-                return
-
-    def action_next_transaction(self) -> None:
-        """Move cursor to the header of the next transaction (Shift+PgDown)."""
-        textarea = self.query_one("#journal_textarea", LedgerTextArea)
-        row, _ = textarea.cursor_location
-        line_infos = textarea._highlighter._line_infos
-        for i in range(row + 1, len(line_infos)):
-            if line_infos[i].kind == LineKind.XACT_HEADER:
-                textarea.move_cursor((i, 0))
-                return
-
     def action_save(self) -> None:
         """Validate, sort by date, and write the journal to disk.
 
+        When a view filter is active the full (unfiltered) journal is saved:
+        edits are merged back from the visible slice before writing.
         Notifications are shown for parse and check errors but do not block the
         write. The cursor row is restored after content is replaced.
         """
         import PyLedger  # noqa: PLC0415
+
+        # Merge filtered edits into full journal before saving.
+        if self._view_filter_mode != 0:
+            ta = self.query_one("#journal_textarea", LedgerTextArea)
+            self._merge_filtered_edits(ta)
+            self._view_filter_mode = 0
+            self._apply_view_filter(ta)
 
         textarea = self.query_one("#journal_textarea", TextArea)
         text = textarea.text
@@ -382,8 +364,205 @@ class JournalEditor(Widget):
         for err in PyLedger.checks.run_basic_checks(journal):
             self.app.notify(err.message, severity="warning")
 
+        self._last_saved_text = sorted_text
         self.post_message(self.SaveCompleted())
+        self.post_message(self.FileModifiedChanged(modified=False))
         self.app.notify("Saved", severity="information")
+
+    # ------------------------------------------------------------------
+    # Key actions — search
+    # ------------------------------------------------------------------
+
+    def action_open_search(self) -> None:
+        """Open search bar (Ctrl+F), or advance to next match if bar already open."""
+        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        bar = self.query_one("#search-bar", SearchBar)
+        if bar.display:
+            bar.advance(direction=1)
+        else:
+            bar.open_bar()
+
+    def action_search_prev(self) -> None:
+        """Advance to the previous search match (Ctrl+Shift+F or Ctrl+R when bar open)."""
+        from ledger_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        bar = self.query_one("#search-bar", SearchBar)
+        if bar.display:
+            bar.advance(direction=-1)
+
+    # ------------------------------------------------------------------
+    # Key actions — view filter
+    # ------------------------------------------------------------------
+
+    def action_cycle_view_filter(self) -> None:
+        """Cycle editor view: All → Cleared → Unreconciled → All (Ctrl+L)."""
+        import PyLedger  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+
+        if self._view_filter_mode == 0:
+            # Entering a filtered view — snapshot the full journal.
+            self._filter_journal, _ = PyLedger.parse_string_lenient(textarea.text)
+        else:
+            # Already filtered — merge edits before switching.
+            self._merge_filtered_edits(textarea)
+
+        self._view_filter_mode = (self._view_filter_mode + 1) % 3
+        self._apply_view_filter(textarea)
+
+    def _apply_view_filter(self, textarea: LedgerTextArea) -> None:
+        """Rebuild textarea content from _filter_journal for the current mode."""
+        import PyLedger  # noqa: PLC0415
+
+        journal = self._filter_journal
+
+        if self._view_filter_mode == 0:
+            # Restore full journal.
+            if journal is not None:
+                full_text = PyLedger.journal_to_text(journal)
+            else:
+                full_text = textarea.text
+            self._filter_journal = None
+            self._filter_visible_indices = []
+            textarea.load_text(full_text)
+        else:
+            if journal is None:
+                return
+            want_cleared = self._view_filter_mode == 1
+            visible: list[tuple[int, object]] = [
+                (i, tx) for i, tx in enumerate(journal.transactions)
+                if (tx.cleared if want_cleared else not tx.cleared)  # type: ignore[union-attr]
+            ]
+            self._filter_visible_indices = [i for i, _ in visible]
+            parts = [PyLedger.transaction_to_text(tx) for _, tx in visible]
+            filtered_text = "\n".join(parts)
+            textarea.load_text(filtered_text)
+
+        self._update_filter_bar()
+
+    def _merge_filtered_edits(self, textarea: LedgerTextArea) -> None:
+        """Merge textarea edits back into _filter_journal before a filter change."""
+        import PyLedger  # noqa: PLC0415
+
+        if self._filter_journal is None:
+            return
+        visible_journal, _ = PyLedger.parse_string_lenient(textarea.text)
+        visible_txs = visible_journal.transactions
+        all_txs: list = list(self._filter_journal.transactions)  # type: ignore[union-attr]
+
+        # Replace tracked slots with edited versions.
+        for slot, idx in enumerate(self._filter_visible_indices):
+            if slot < len(visible_txs):
+                all_txs[idx] = visible_txs[slot]
+
+        # Append any newly added transactions beyond the original visible count.
+        new_txs = visible_txs[len(self._filter_visible_indices):]
+        all_txs.extend(new_txs)
+
+        # Remove deleted transactions (visible slots with no counterpart in edited view).
+        deleted = self._filter_visible_indices[len(visible_txs):]
+        for idx in sorted(deleted, reverse=True):
+            if idx < len(all_txs):
+                del all_txs[idx]
+
+        all_txs.sort(key=lambda tx: tx.date)  # type: ignore[union-attr]
+        self._filter_journal.transactions = all_txs  # type: ignore[union-attr]
+
+    def _update_filter_bar(self) -> None:
+        """Refresh the ViewFilterBar label after a filter change."""
+        try:
+            self.query_one(ViewFilterBar).set_mode(self._view_filter_mode)
+        except Exception:  # noqa: BLE001
+            pass
+
+    # ------------------------------------------------------------------
+    # Key actions — navigation and editing
+    # ------------------------------------------------------------------
+
+    def action_select_all(self) -> None:
+        """Select all text in the editor (Ctrl+A)."""
+        from textual.document._document import Selection  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", TextArea)
+        lines = textarea.text.splitlines()
+        if not lines:
+            return
+        last_row = len(lines) - 1
+        textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
+
+    def action_autofill(self) -> None:
+        """Duplicate current or all selected transactions to end of file (Ctrl+G).
+
+        Single cursor: duplicates the one transaction block at the cursor.
+        Multi-line selection (e.g. from repeated Ctrl+T): duplicates every
+        transaction block whose header falls within the selection range.
+        Each duplicate gets today's date on its header line.
+        """
+        from datetime import date as _date  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+        sel = textarea.selection
+        lines = textarea.text.splitlines()
+        if not lines:
+            return
+        today = _date.today().isoformat()
+
+        sel_start = min(sel.start[0], sel.end[0])
+        sel_end = max(sel.start[0], sel.end[0])
+
+        if sel_start < sel_end:
+            line_infos = textarea._highlighter._line_infos
+            seen: set[int] = set()
+            blocks: list[tuple[int, int]] = []
+            for r in range(sel_start, min(sel_end + 1, len(line_infos))):
+                if line_infos[r].kind == LineKind.XACT_HEADER and r not in seen:
+                    start_r, end_r = _find_transaction_block(lines, r)
+                    for br in range(start_r, end_r + 1):
+                        seen.add(br)
+                    blocks.append((start_r, end_r))
+            if not blocks:
+                row, _ = textarea.cursor_location
+                blocks = [_find_transaction_block(lines, row)]
+        else:
+            row, _ = textarea.cursor_location
+            blocks = [_find_transaction_block(lines, row)]
+
+        new_block_texts: list[str] = []
+        for start_r, end_r in blocks:
+            block_lines = list(lines[start_r : end_r + 1])
+            m = _TXN_HEADER_RE.match(block_lines[0])
+            if m:
+                block_lines[0] = today + block_lines[0][len(m.group(1)):]
+            new_block_texts.append("\n".join(block_lines))
+
+        appended = "\n\n".join(new_block_texts)
+        current_text = textarea.text.rstrip("\n")
+        new_text = current_text + "\n\n" + appended + "\n"
+        textarea.load_text(new_text)
+
+        first_new_start = len(current_text.splitlines()) + 1  # +1 for blank separator
+        textarea.move_cursor((first_new_start, 0))
+
+    def action_prev_transaction(self) -> None:
+        """Move cursor to the header of the previous transaction (Shift+PgUp)."""
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+        row, _ = textarea.cursor_location
+        line_infos = textarea._highlighter._line_infos
+        for i in range(row - 1, -1, -1):
+            if i < len(line_infos) and line_infos[i].kind == LineKind.XACT_HEADER:
+                textarea.move_cursor((i, 0))
+                return
+
+    def action_next_transaction(self) -> None:
+        """Move cursor to the header of the next transaction (Shift+PgDown)."""
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+        row, _ = textarea.cursor_location
+        line_infos = textarea._highlighter._line_infos
+        for i in range(row + 1, len(line_infos)):
+            if line_infos[i].kind == LineKind.XACT_HEADER:
+                textarea.move_cursor((i, 0))
+                return
 
     def action_select_transaction_block(self) -> None:
         """Select the transaction block at the cursor; extend on each repeated press.
@@ -400,15 +579,12 @@ class JournalEditor(Widget):
             return
 
         sel = textarea.selection
-        # Normalize: handle both selection directions.
         sel_start_row = min(sel.start[0], sel.end[0])
         sel_end_row = max(sel.start[0], sel.end[0])
         sel_end_col = (
             sel.start[1] if sel.start[0] > sel.end[0] else sel.end[1]
         )
 
-        # If there is already a multi-row selection whose end aligns with a block
-        # boundary, extend by one more transaction block.
         if sel_start_row < sel_end_row and sel_end_row < len(lines):
             expected_end_col = len(lines[sel_end_row])
             if sel_end_col == expected_end_col:
@@ -424,7 +600,6 @@ class JournalEditor(Widget):
                             )
                             return
 
-        # Default: select the block containing the cursor.
         row, _ = textarea.cursor_location
         start_row, end_row = _find_transaction_block(lines, row)
         end_col = len(lines[end_row]) if end_row < len(lines) else 0
@@ -442,20 +617,8 @@ class JournalEditor(Widget):
         last_col = len(lines[last_row]) if lines else 0
         textarea.move_cursor((last_row, last_col))
 
-    def action_select_all(self) -> None:
-        """Select all text in the editor (Ctrl+A)."""
-        from textual.document._document import Selection  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", TextArea)
-        lines = textarea.text.splitlines()
-        if not lines:
-            return
-        last_row = len(lines) - 1
-        textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
-
     def action_insert_today(self) -> None:
-        """Insert today's date at the cursor position (Ctrl+;)."""
+        """Insert today's date at the cursor position (Ctrl+D)."""
         from datetime import date as _date  # noqa: PLC0415
 
         self.query_one("#journal_textarea", TextArea).insert(_date.today().isoformat() + " ")
-

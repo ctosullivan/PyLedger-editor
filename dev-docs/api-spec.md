@@ -135,18 +135,205 @@ class FilterPopup(Widget):
 
 ---
 
+## `ledger_editor.widgets.search_bar`
+
+### `_build_offset_table`
+
+```python
+def _build_offset_table(text: str) -> list[int]:
+    """Return a list of byte-start offsets for every line in text.
+
+    Index i holds the character offset of line i within the full text.
+    Used for O(log N) offset→(row, col) conversion via bisect.
+    """
+```
+
+### `_offset_to_location`
+
+```python
+def _offset_to_location(
+    offset: int, table: list[int]
+) -> tuple[int, int]:
+    """Convert a flat character offset to a (row, col) location.
+
+    Args:
+        offset: character offset within the document.
+        table: offset table returned by _build_offset_table().
+
+    Returns:
+        (row, col) tuple (0-indexed).
+    """
+```
+
+### `SearchBar`
+
+```python
+class SearchBar(Widget):
+    """Incremental search bar docked inside JournalEditor.
+
+    Hidden (display: none) by default; shown by open_bar().
+    """
+
+    def open_bar(self, initial_direction: int = 1) -> None:
+        """Show the bar, focus the input, and begin searching.
+
+        Args:
+            initial_direction: 1 for forward (Ctrl+F), -1 for reverse (Ctrl+Shift+F).
+        """
+
+    def dismiss(self) -> None:
+        """Clear highlights and hide the bar."""
+
+    def advance(self, direction: int = 1) -> None:
+        """Move to the next (direction=1) or previous (direction=-1) match."""
+
+    def advance_to_transaction(self, direction: int = 1) -> None:
+        """Jump to the next transaction block that contains a match (Alt+F3)."""
+```
+
+---
+
+## `ledger_editor.widgets.reconcile_actions`
+
+### `_find_transaction_header_above`
+
+```python
+def _find_transaction_header_above(
+    line_infos: list, row: int
+) -> int | None:
+    """Walk line_infos backwards from row to find the nearest XACT_HEADER.
+
+    Returns:
+        Row index of the header, or None if no header found above.
+    """
+```
+
+### `_build_reconcile_document`
+
+```python
+def _build_reconcile_document(
+    transactions: list,
+) -> tuple[str, dict[int, int]]:
+    """Serialise transactions into a reconcile editor document.
+
+    Returns:
+        (text, line_to_tx) where line_to_tx maps each transaction's header
+        line number → its index in the transactions list.
+    """
+```
+
+### `ReconcileMixin`
+
+```python
+class ReconcileMixin:
+    """Mixin providing reconcile-mode methods for JournalEditor."""
+
+    def enter_reconcile_mode(self, account: str) -> None:
+        """Load reconcile view for account, make textarea read-only."""
+
+    def exit_reconcile_mode(self, commit: bool) -> None:
+        """Exit reconcile mode. If commit=True, apply cleared flags to journal."""
+
+    def action_commit_reconcile(self) -> None:
+        """Ctrl+Enter: commit and exit reconcile mode."""
+
+    def action_cancel_reconcile(self) -> None:
+        """Escape: cancel and exit reconcile mode."""
+
+    def action_reconcile_mark_all_cleared(self) -> None:
+        """Ctrl+A in reconcile mode: mark all transactions cleared."""
+```
+
+---
+
+## `ledger_editor.widgets.reconcile_bar`
+
+### `ReconcileStatusBar`
+
+```python
+class ReconcileStatusBar(Widget):
+    """One-line status bar shown above JournalEditor during reconcile mode.
+
+    Displays: account | checked balance | target input | Δ delta.
+    """
+
+    class TargetChanged(Message):
+        """Posted when the user edits the reconcile target amount."""
+        target: Decimal
+
+    def set_reconcile_data(self, account: str, transactions: list) -> None:
+        """Initialise the bar for a new reconcile session."""
+```
+
+---
+
+## `ledger_editor.widgets.reconcile_summary`
+
+### `ReconcileSummary`
+
+```python
+class ReconcileSummary(Widget):
+    """Four-value reconciliation summary shown in RegisterPanel during reconcile mode.
+
+    Displays: cleared balance, unreconciled count/net, pending count/net,
+    difference vs target.
+    """
+
+    def set_reconcile_data(self, account: str, transactions: list) -> None:
+        """Initialise for a new reconcile session."""
+
+    def refresh_totals(self, tx: object, account: str) -> None:
+        """Recompute all summary values after a TransactionClearedToggled event."""
+
+    def set_target(self, target: Decimal) -> None:
+        """Update the target balance."""
+```
+
+---
+
+## `ledger_editor.widgets.register_panel` (updated)
+
+### `_cached_register_rows`
+
+```python
+@lru_cache(maxsize=32)
+def _cached_register_rows(
+    journal_path: str, account: str, mtime: float
+) -> list[tuple[str, str, str, str]]:
+    """Load and cache register rows from disk.
+
+    Cache key includes mtime so rows are automatically invalidated after
+    a Ctrl+S save. The live-update path (refresh_account_from_text) bypasses
+    this cache and parses in-memory text directly.
+    """
+```
+
+---
+
 ## `ledger_editor.widgets.ledger_textarea`
 
 ### `LedgerTextArea`
 
 ```python
 class LedgerTextArea(TextArea):
-    """TextArea subclass with hledger journal syntax highlighting.
+    """TextArea subclass with hledger journal syntax highlighting and search.
 
     Drop-in replacement for TextArea. Overrides _build_highlight_map()
-    (private Textual 8.2.5 API) to inject ledger token spans and block
-    background overlays into self._highlights on every edit.
+    (private Textual 8.2.5 API) to inject ledger token spans and search
+    highlight spans into self._highlights on every edit.
     """
+
+    def set_search_matches(
+        self,
+        matches: list[tuple[tuple[int, int], tuple[int, int]]],
+        current: int,
+    ) -> None:
+        """Update search highlight state and repaint the widget.
+
+        Args:
+            matches: list of ((start_row, start_col), (end_row, end_col)) pairs.
+            current: index of the focused match, or -1 to clear.
+        """
 
     def _rebuild_ledger_theme(self) -> None:
         """Activate the correct TextAreaTheme for the current app theme.

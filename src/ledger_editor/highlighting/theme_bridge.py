@@ -81,4 +81,18 @@ def build_textarea_theme(app: "App") -> TextAreaTheme:
             # parse as hex/RGB colours. Fall back to a neutral grey.
             syntax_styles[token] = Style(color=_TEXT_FALLBACK, bold=bold)
 
+    # Search highlight tokens use background colouring rather than foreground.
+    # Use the app's warning variable for match background; background variable
+    # for the current-match text colour to ensure contrast.
+    search_bg = variables.get("warning", "#FFAA00")
+    text_bg = variables.get("background", "#000000")
+    try:
+        syntax_styles[tokens.SEARCH_MATCH] = Style(bgcolor=search_bg)
+        syntax_styles[tokens.SEARCH_CURRENT] = Style(
+            bgcolor=search_bg, color=text_bg, bold=True
+        )
+    except ColorParseError:
+        syntax_styles[tokens.SEARCH_MATCH] = Style(bgcolor="yellow")
+        syntax_styles[tokens.SEARCH_CURRENT] = Style(bgcolor="bright_yellow", bold=True)
+
     return TextAreaTheme(name="ledger", syntax_styles=syntax_styles)

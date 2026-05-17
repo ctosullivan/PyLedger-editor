@@ -15,6 +15,34 @@ Format per entry:
 
 ---
 
+## [0.8.0] — Major Refactor: Pure Editor + View Filter — 2026-05-17
+
+- Human: Remove balance sidebar, register panel, and all reconcile-mode machinery. Make the app a pure hledger text editor. Replace reconcile mode with a Ctrl+L view filter that cycles the editor between All / Cleared / Unreconciled transactions.
+- Claude: Deleted 5 widget files (`balance_sidebar.py`, `register_panel.py`, `reconcile_bar.py`, `reconcile_summary.py`, `reconcile_actions.py`) and 2 test files (`test_balance_sidebar.py`, `test_register_panel.py`). Rewrote `transaction_table.py`: removed `ReconcileMixin`, all reconcile state attrs and message classes (`ReconcileModeEntered`, `ReconcileModeExited`, `TransactionClearedToggled`, `LiveChanged`, `CursorAccountChanged`), removed debounce timer, removed reconcile BINDINGS (`ctrl+i`, `ctrl+enter`), simplified `action_blur_editor` / `action_toggle_cleared` / `action_select_all`; added `_view_filter_mode`, `_filter_journal`, `_filter_visible_indices` state attrs; added `action_cycle_view_filter()`, `_apply_view_filter()`, `_merge_filtered_edits()`, `_update_filter_bar()`; `action_save()` merges filtered edits before writing. Created `view_filter_bar.py` (ViewFilterBar, 1-row status bar showing current filter mode). Rewrote `app.py`: removed `BalanceSidebar`, `RegisterPanel`, `Vertical` imports; removed right-panel CSS and all sidebar/reconcile message handlers; JournalEditor now full-width (`width: 1fr`). Fixed `widgets/__init__.py` to export only surviving widgets. Moved `_find_transaction_header_above` from deleted `reconcile_actions.py` into `search_bar.py` (only remaining caller). Added 12 new tests in `test_view_filter.py`. Updated `docs/shortcuts.md` and `knowledge_base/keybindings.md`. Suite: 175/175.
+
+---
+
+## [0.7.2] — UAT Round 2 Fixes — 2026-05-17
+
+- Human: UAT of v0.7.1 revealed: F3/Shift+F3/Alt+F3 collide with Windows OS shortcuts; Ctrl+Shift+R (reconcile) not working in Windows Terminal; requested Ctrl+G duplicate-multiple-transactions when selection spans multiple blocks.
+- Claude: Search navigation rework — removed `f3`, `shift+f3`, `alt+f3` bindings and `open_search_reverse` action; made `action_open_search` context-sensitive (open if closed, advance if open); made `action_toggle_cleared` check search bar visibility first (Ctrl+R = prev match when bar visible); rebound Ctrl+Shift+F to `search_prev` (priority=True) replacing `open_search_reverse`. Reconcile binding — changed Ctrl+Shift+R → Ctrl+Shift+C in both JournalEditor and BalanceSidebar (C for Clearing; avoids Windows Terminal intercept). Ctrl+G multi-block — `action_autofill` now detects multi-line selection via `textarea.selection`; walks `line_infos` to find XACT_HEADER rows in selection range, deduplicates with `seen` set, duplicates all blocks with today's date; single-cursor path unchanged. Updated `docs/shortcuts.md`, `knowledge_base/keybindings.md`, `CONTEXT.md`. Suite: 178/178.
+
+---
+
+## [0.7.1] — UAT Round 1 Bug Fixes — 2026-05-17
+
+- Human: UAT of v0.7.0 revealed: Ctrl+F did nothing; register panel blank with Tab focus broken; reconcile Ctrl+R crashed silently; FilterPopup docstrings still referenced old Ctrl+Shift+F binding. Also requested a comprehensive keybindings knowledge-base document.
+- Claude: Bug 1 — added `priority=True` to all 5 search bindings in `JournalEditor.BINDINGS` (`ctrl+f`, `ctrl+shift+f`, `f3`, `shift+f3`, `alt+f3`) so JournalEditor captures them before LedgerTextArea's inherited `delete_word_right`. Bug 2 — fixed `ContentSwitcher(initial="register_table")` and `watch_reconcile_mode` string from `"register-view"` → `"register_table"` to match `DataTable(id="register_table")`; reactive init watcher had been hiding all children. Bug 3 — fixed `textarea.replace()` calls in `_action_reconcile_toggle_cleared` and `action_reconcile_mark_all_cleared` from `Selection` object to positional `(from_location, to_location)` tuples; removed stale `from textual.document._document import Selection` imports. Bug 4 — updated module and class docstrings in `filter_popup.py` from `Ctrl+Shift+F` → `Ctrl+Shift+P`. New: `knowledge_base/keybindings.md` — full map of all TextArea inherited bindings, project bindings per widget, collision table, `priority=True` pattern, free Ctrl+ keys, terminal compatibility notes. Suite: 178/178.
+
+---
+
+## [0.7.0] — 2026-05-13
+
+- Human: v0.7.0 planning prompt — five feature areas as a single batch: (1) incremental search bar with match highlighting; (2) file-path display with modified indicator; (3) reconciliation mode with ReconcileStatusBar and ReconcileSummary; (4) live widget updates tuning; (5) register efficiency fixes.
+- Claude: Step 0 — split `reconcile_actions.py` from `transaction_table.py` (ReconcileMixin + pure helpers; approved by user before implementation). Step 1 — register efficiency fixes: same-account guard + 250 ms debounce in `show_account()`; module-level `@lru_cache(maxsize=32)` keyed on `(path, account, mtime)` for disk reads; live-update path bypasses cache and uses `parse_string_lenient` directly; `PAGE_SIZE = 500` pagination with scroll-triggered load-more; `ContentSwitcher` added to `RegisterPanel` for reconcile/register view switching. Step 2 — debounce reduced from 0.8 s → 0.25 s; `_in_reconcile_mode` flag suppresses live debounce during reconcile; `action_save()` cancels pending timer before write. Step 3 — `#file-path-bar` Static widget in `LedgerApp.compose()` shows resolved path; appends " · modified" on every text change via `FileModifiedChanged` message; cleared on save. Step 4 — `SearchBar` widget (incremental search, `Ctrl+F`/`Ctrl+Shift+F`, `F3`/`Shift+F3`/`Alt+F3`, `Escape`); pure helpers `_build_offset_table()` and `_offset_to_location()` for O(log N) offset → location conversion; `LedgerTextArea.set_search_matches()` injects `ledger.search.match` / `ledger.search.current` spans into `_highlights` via a second pass in `_build_highlight_map()`; Monokai Pro search styles added; `FilterPopup` binding moved from `Ctrl+Shift+F` → `Ctrl+Shift+P` to free `Ctrl+Shift+F` for reverse search. Step 5 — `ReconcileMixin` with `enter_reconcile_mode()` / `exit_reconcile_mode()` / `_apply_reconcile_changes()`; `ReconcileStatusBar` (account | checked | target input | Δ); `ReconcileSummary` (cleared balance, unreconciled, pending, Δ vs target); reconcile entry points in `BalanceSidebar` (`Ctrl+Shift+R`) and `JournalEditor` (`Ctrl+Shift+R` on posting line); `Ctrl+Enter` commit / `Escape` cancel. Step 6 — updated `docs/shortcuts.md`, `dev-docs/api-spec.md`, `ROADMAP.md`, `CLAUDE.md`, `CONTEXT.md`. All token names prefixed `ledger.*`; `JournalEditor.on_mount()` now explicitly focuses the textarea. Suite: 178/178.
+
+---
+
 ## [0.6.0] — 2026-05-12
 
 - Human: Insert-date binding Ctrl+M also inserts a newline (Ctrl+M = Enter in

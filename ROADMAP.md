@@ -48,16 +48,27 @@ The current `FilterPopup` (opened with `Ctrl+Shift+F`) is a UI stub only.
 
 ## Milestone 4 — Polish & Robustness
 
-- [x] Full pytest suite with Textual test harness (pilot testing) — 157 tests
-- [ ] Syntax highlighting: hledger token colouring (date, flag, payee, account,
+- [x] Full pytest suite with Textual test harness (pilot testing) — 178 tests
+- [x] Syntax highlighting: hledger token colouring (date, flag, payee, account,
       amount, commodity, comments, directives) — `[DONE — 2026-05-11]`
-- [ ] Monokai Pro as hardcoded default app theme with TCSS widget chrome overrides
+- [x] Monokai Pro as hardcoded default app theme with TCSS widget chrome overrides
       — `[DONE — 2026-05-11]`
-- [ ] Runtime theme switching: `app.theme = name` auto-updates TextArea colours
+- [x] Runtime theme switching: `app.theme = name` auto-updates TextArea colours
       — `[DONE — 2026-05-11]`
-- [ ] Block-level background overlays (cleared / pending / uncleared tinting)
+- [x] Block-level background overlays (cleared / pending / uncleared tinting)
       — `[DONE — 2026-05-11]`
-- [ ] Async balance refresh after every save
-- [ ] Error/warning notification bar for validation failures
+- [x] Async balance refresh after every save
+- [x] Error/warning notification bar for validation failures
 - [ ] Command palette integration
 - [ ] Performance: large journals (10k+ transactions)
+
+## v0.7.0 — Search, Reconcile & Efficiency
+
+- [ ] Incremental search bar (`Ctrl+F` / `Ctrl+Shift+F`, `F3`/`Shift+F3`, `Alt+F3`)
+- [ ] Match highlighting in editor (ledger.search.match / ledger.search.current spans)
+- [ ] File-path bar with modified indicator (`#file-path-bar`)
+- [ ] Reconciliation mode: `ReconcileMixin`, `ReconcileStatusBar`, `ReconcileSummary`
+- [ ] RegisterPanel `ContentSwitcher` (register ↔ reconcile summary)
+- [ ] Live-update debounce reduced to 250 ms; suppressed during reconcile
+- [ ] Register LRU cache keyed on `(path, account, mtime)`
+- [ ] Register pagination (PAGE_SIZE = 500, scroll-triggered load-more)

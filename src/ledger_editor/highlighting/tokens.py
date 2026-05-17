@@ -31,3 +31,7 @@ DIRECTIVE_ARG = "ledger.directive.arg"
 BLOCK_CLEARED = "ledger.block.cleared"
 BLOCK_PENDING = "ledger.block.pending"
 BLOCK_UNCLEARED = "ledger.block.uncleared"
+
+# Search highlight tokens
+SEARCH_MATCH = "ledger.search.match"
+SEARCH_CURRENT = "ledger.search.current"

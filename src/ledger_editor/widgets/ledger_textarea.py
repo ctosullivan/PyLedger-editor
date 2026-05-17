@@ -10,6 +10,8 @@ tree-sitter). Python's re module returns Unicode codepoint offsets. For
 ASCII-only lines these are identical; for lines containing multibyte currency
 symbols (£, €, ₹) the offsets diverge. _build_cp_to_byte() converts each
 span produced by LedgerHighlighter before it is written to _highlights.
+
+Search highlights are injected in a second pass via set_search_matches().
 """
 
 from __future__ import annotations
@@ -22,6 +24,9 @@ from ledger_editor.highlighting import tokens as _tok
 from ledger_editor.highlighting.highlighter import LineKind
 
 __all__ = ["LedgerTextArea"]
+
+# A Location is (row, col) — 0-indexed, matching Textual's TextArea convention.
+Location = tuple[int, int]
 
 
 def _build_cp_to_byte(line: str) -> list[int]:
@@ -41,7 +46,7 @@ def _build_cp_to_byte(line: str) -> list[int]:
 
 
 class LedgerTextArea(TextArea):
-    """TextArea subclass that adds hledger journal syntax highlighting.
+    """TextArea subclass that adds hledger journal syntax and search highlighting.
 
     Drop-in replacement for TextArea in JournalEditor.compose(). All existing
     query_one(..., TextArea) calls continue to work via subclass compatibility.
@@ -51,6 +56,8 @@ class LedgerTextArea(TextArea):
         # Must be set before super().__init__() because TextArea.__init__ calls
         # _set_document() which calls _build_highlight_map() synchronously.
         self._highlighter = LedgerHighlighter()
+        self._search_matches: list[tuple[Location, Location]] = []
+        self._search_current: int = -1
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
     # ------------------------------------------------------------------
@@ -142,6 +149,8 @@ class LedgerTextArea(TextArea):
 
         self._highlighter.invalidate(self.text)
         lines = self.text.splitlines()
+
+        # Syntax highlighting pass — ledger token colours from LedgerHighlighter.
         for line_idx, line_text in enumerate(lines):
             spans = self._highlighter.get_highlights(line_idx, line_text)
             if not spans:
@@ -151,6 +160,67 @@ class LedgerTextArea(TextArea):
                 start_b = ctb[start_cp]
                 end_b = ctb[end_cp] if end_cp is not None else None
                 self._highlights[line_idx].append((start_b, end_b, tok))
+
+        # Search highlight pass — injected on top of syntax highlights.
+        for i, (start, end) in enumerate(self._search_matches):
+            tok = _tok.SEARCH_CURRENT if i == self._search_current else _tok.SEARCH_MATCH
+            self._inject_search_span(lines, start, end, tok)
+
+    def _inject_search_span(
+        self,
+        lines: list[str],
+        start: Location,
+        end: Location,
+        tok: str,
+    ) -> None:
+        """Append one search match span to _highlights, covering start..end.
+
+        Handles both single-line and (rare) multi-line matches. Column indices
+        are codepoint-based and must be converted to byte offsets for Textual.
+
+        Args:
+            lines: the full splitlines() of the current text.
+            start: (row, col) of the match start (inclusive).
+            end: (row, col) of the match end (exclusive past last char).
+            tok: token name to use (SEARCH_MATCH or SEARCH_CURRENT).
+        """
+        start_row, start_col = start
+        end_row, end_col = end
+        for line_idx in range(start_row, end_row + 1):
+            if line_idx >= len(lines):
+                break
+            line_text = lines[line_idx]
+            ctb = _build_cp_to_byte(line_text)
+            n = len(ctb) - 1  # last valid byte position (exclusive-end sentinel)
+            if line_idx == start_row:
+                s_b = ctb[min(start_col, n)]
+            else:
+                s_b = 0
+            if line_idx == end_row:
+                e_b = ctb[min(end_col, n)]
+            else:
+                e_b = None  # None means: extend highlight to end of line
+            self._highlights[line_idx].append((s_b, e_b, tok))
+
+    def set_search_matches(
+        self,
+        matches: list[tuple[Location, Location]],
+        current: int,
+    ) -> None:
+        """Update search highlight state and repaint the widget.
+
+        Called by SearchBar whenever the match list or current index changes.
+        Replaces _highlights search spans by re-running _build_highlight_map()
+        (which re-injects syntax highlights first, then search highlights on top).
+
+        Args:
+            matches: list of (start_location, end_location) pairs.
+            current: index into matches for the currently focused match, or -1.
+        """
+        self._search_matches = matches
+        self._search_current = current
+        self._build_highlight_map()
+        self.refresh()
 
     # ------------------------------------------------------------------
     # Theme management
