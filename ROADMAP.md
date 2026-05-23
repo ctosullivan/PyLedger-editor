@@ -17,15 +17,23 @@ The editor is a full-screen, keyboard-driven plain-text hledger journal editor.
 - Enter auto-indent on transaction header and posting lines
 
 **File operations**
-- `Ctrl+S` — sort by date, re-align whitespace, save; merges active view-filter
-  edits before writing
+- `Ctrl+S` — sort by date, align posting amounts to column 52 (emacs ledger-mode
+  style), save; merges active view-filter edits before writing
 - File-path bar with modified indicator
+
+**Undo / redo**
+- `Ctrl+Z` / `Ctrl+Y` — two-layer undo stack: `CommandHistory` (Layer 2, text +
+  model operations) consulted first; falls through to TextArea native `EditHistory`
+  (Layer 1, free-form text + `Ctrl+G` duplicate)
+- `atomic_edit()` collapses bulk operations (e.g. multi-transaction `Ctrl+R`) into
+  a single `Ctrl+Z` press
 
 **Transaction editing**
 - `Ctrl+R` — 3-state cleared cycle (uncleared → pending `!` → cleared `*`);
-  bulk-toggle for multi-block selections (all cleared → all uncleared; otherwise → all `*`)
+  bulk-toggle for multi-block selections (all cleared → all uncleared; otherwise →
+  all `*`); fully atomic — single `Ctrl+Z` reverses the entire bulk toggle
 - `Ctrl+G` — duplicate current transaction block to end of file with today's date;
-  multi-block selection duplicates all selected blocks
+  multi-block selection duplicates all selected blocks; fully undoable with `Ctrl+Z`
 - `Ctrl+D` — insert today's date at cursor
 - `Ctrl+T` — select current transaction block; repeated presses extend selection
 

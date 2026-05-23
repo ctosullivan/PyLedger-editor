@@ -103,6 +103,30 @@ class LedgerTextArea(TextArea):
     # Mount
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Scroll cursor into view — keep 4 lines of context below cursor
+    # ------------------------------------------------------------------
+
+    def scroll_cursor_visible(self, center: bool = False, animate: bool = False) -> "Offset":
+        """Keep cursor visible with a 4-line bottom context margin.
+
+        Overrides TextArea.scroll_cursor_visible to add bottom spacing so the
+        cursor never sits flush against the last visible row (Textual 0.83.0).
+        """
+        from textual.geometry import Offset, Region, Spacing
+
+        if not self._has_cursor:
+            return Offset(0, 0)
+        self._recompute_cursor_offset()
+        x, y = self._cursor_offset
+        return self.scroll_to_region(
+            Region(x, y, width=3, height=1),
+            spacing=Spacing(right=self.gutter_width, bottom=4),
+            animate=animate,
+            force=True,
+            center=center,
+        )
+
     def _on_mount(self, event: events.Mount) -> None:
         """Extend TextArea mount to register an initial ledger theme."""
         super()._on_mount(event)

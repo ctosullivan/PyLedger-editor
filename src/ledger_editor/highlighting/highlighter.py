@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, Tuple
 
 from ledger_editor.highlighting import tokens
 
@@ -155,7 +155,7 @@ class LineInfo:
 # Highlighter
 # ---------------------------------------------------------------------------
 
-Span = tuple[int, Optional[int], str]
+Span = Tuple[int, Optional[int], str]
 
 
 class LedgerHighlighter:

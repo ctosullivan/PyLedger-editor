@@ -156,6 +156,11 @@ class JournalEditor(Widget):
         # View filter — cycle All / Cleared / Unreconciled
         Binding("ctrl+l", "cycle_view_filter", "Filter cleared",
                 key_display="Ctrl+L", show=True),
+        # Undo/redo — priority=True so JournalEditor intercepts before LedgerTextArea
+        # routes these to the native TextArea undo stack.  action_undo / action_redo
+        # consult CommandHistory first, then fall through to textarea.action_undo/redo.
+        Binding("ctrl+z", "undo", "Undo", show=False, priority=True),
+        Binding("ctrl+y", "redo", "Redo", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -195,10 +200,12 @@ class JournalEditor(Widget):
         Args:
             journal_path: Absolute path to the .journal or .ledger file to edit.
         """
+        from ledger_editor.commands import CommandHistory  # noqa: PLC0415
         super().__init__()
         self.journal_path = journal_path
         self._current_account: str | None = None
         self._last_saved_text: str = ""
+        self._command_history: CommandHistory = CommandHistory()
         # View filter state
         self._view_filter_mode: int = 0          # 0=All, 1=Cleared, 2=Unreconciled
         self._filter_journal: object | None = None
@@ -244,6 +251,36 @@ class JournalEditor(Widget):
     # ------------------------------------------------------------------
     # Key actions — file operations
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Undo / redo — two-layer stack
+    # ------------------------------------------------------------------
+
+    def action_undo(self) -> None:
+        """Undo the most recent operation.
+
+        Consults CommandHistory first (Layer 2 — operations that affect both
+        text and in-memory model state).  Falls through to the child
+        LedgerTextArea's native undo (Layer 1 — EditHistory) when
+        CommandHistory has no entries.
+        """
+        if self._command_history.can_undo:
+            cmd = self._command_history.undo()
+            if cmd:
+                self.notify(f"Undid: {cmd.description}", timeout=2)
+        else:
+            textarea = self.query_one("#journal_textarea", TextArea)
+            textarea.action_undo()
+
+    def action_redo(self) -> None:
+        """Redo the most recently undone operation."""
+        if self._command_history.can_redo:
+            cmd = self._command_history.redo()
+            if cmd:
+                self.notify(f"Redid: {cmd.description}", timeout=2)
+        else:
+            textarea = self.query_one("#journal_textarea", TextArea)
+            textarea.action_redo()
 
     def action_blur_editor(self) -> None:
         """Escape: dismiss search bar if open, else unfocus."""
@@ -303,17 +340,19 @@ class JournalEditor(Widget):
             for r in header_rows
         )
         new_flag: str | None = None if all_cleared else "*"
-        for r in reversed(header_rows):
-            m = _TXN_HEADER_RE.match(lines[r])
-            if not m:
-                continue
-            parts = [m.group(1)]
-            if new_flag:
-                parts.append(new_flag)
-            if m.group(3):
-                parts.append(m.group(3))
-            new_line = " ".join(parts)
-            textarea.replace(new_line, (r, 0), (r, len(lines[r])))
+        from ledger_editor.utils.atomic_edit import atomic_edit  # noqa: PLC0415
+        with atomic_edit(textarea):
+            for r in reversed(header_rows):
+                m = _TXN_HEADER_RE.match(lines[r])
+                if not m:
+                    continue
+                parts = [m.group(1)]
+                if new_flag:
+                    parts.append(new_flag)
+                if m.group(3):
+                    parts.append(m.group(3))
+                new_line = " ".join(parts)
+                textarea.replace(new_line, (r, 0), (r, len(lines[r])))
 
     def action_save(self) -> None:
         """Validate, sort by date, and write the journal to disk.
@@ -341,6 +380,9 @@ class JournalEditor(Widget):
 
         journal.transactions.sort(key=lambda t: t.date)
         sorted_text = PyLedger.journal_to_text(journal)
+
+        from ledger_editor.utils.ledger_io import align_posting_amounts  # noqa: PLC0415
+        sorted_text = align_posting_amounts(sorted_text)
 
         saved_loc = textarea.cursor_location
         textarea.load_text(sorted_text)
@@ -521,7 +563,14 @@ class JournalEditor(Widget):
         appended = "\n\n".join(new_block_texts)
         current_text = textarea.text.rstrip("\n")
         new_text = current_text + "\n\n" + appended + "\n"
-        textarea.load_text(new_text)
+
+        # Use replace() instead of load_text() so the operation is recorded in the
+        # undo stack.  load_text() calls history.clear(), destroying prior undo
+        # history.  A single full-document replace() creates one undoable entry.
+        raw = textarea.text
+        parts = raw.split("\n")
+        doc_end = (len(parts) - 1, len(parts[-1]))
+        textarea.replace(new_text, (0, 0), doc_end)
 
         first_new_start = len(current_text.splitlines()) + 1  # +1 for blank separator
         textarea.move_cursor((first_new_start, 0))

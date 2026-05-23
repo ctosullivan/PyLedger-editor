@@ -13,6 +13,34 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Posting line with no amount but an inline comment (e.g. `    expenses:food  ; memo`) was being aligned as if the comment were an amount field.
+- Claude: Inline comments (`  ; ...`) are now peeled from the posting line before regex matching and reattached after; a body with no `( {2,})` separator is correctly skipped. Added `test_posting_no_amount_inline_comment_unchanged` test.
+
+---
+
+- Human: Postings with suffix-currency amounts and inline comments (e.g. `    expenses:food  50.00 EUR  ; note`) were misaligned — the greedy account-name regex consumed amount words as account, leaving only `; note` as the "amount".
+- Claude: Same inline-comment pre-peel fix resolves this; the regex now operates on the comment-free body only. Added `test_posting_amount_with_inline_comment_aligned` test.
+
+---
+
+### Known Limitations
+- Standalone comment lines within transaction blocks (`    ; note`) are removed on Ctrl+S. PyLedger v0.5.0 `journal_to_text()` does not serialise comments; `align_posting_amounts()` preserves them when called directly, but the Ctrl+S round-trip (`parse_string_lenient` → `journal_to_text`) strips them before alignment runs.
+
+---
+
+- Human: Alignment only applied to transactions whose account names have no spaces; accounts like "Assets:Bank:AIB Cormac" were silently skipped.
+- Claude: Root cause: regex Group 2 `([^;]\S*)` stopped at the first space, so multi-word account names never matched `( {2,})`. Fixed to `([^\s;]\S*(?:[ ]\S+)*)` which chains (exactly-one-space + non-space-word) groups until a double-space separator stops it. Updated regex block comment to document the new pattern and its disambiguation rule. Added `test_account_name_with_spaces_aligned` test covering multi-word accounts and balance-completing postings side-by-side. Updated `_amount_end_col` helper to use `(.+?)( {2,})` so it also handles space-containing accounts without false-positives on balance-completing postings.
+
+---
+
+- Human: Amount alignment formula placed amount start at col 52; correct behaviour is right-edge (last character) at col 52 — amounts of different lengths were ending at different columns (ragged right edge across transactions).
+- Claude: Fixed formula in `align_posting_amounts()` from `max(2, column - len(indent) - len(account))` to `max(2, (column - len(amount)) - len(indent) - len(account))` so the last character of each amount lands at column 52. Updated regex block comment to include the corrected formula. Rewrote tests: renamed `_amount_col` helper to `_amount_end_col` (measures last-char column); renamed `test_amount_starts_at_column_52` to `test_amount_ends_at_column_52`; added `test_multi_transaction_amounts_all_end_at_52` which verifies amounts with different lengths across multiple transactions all share a common right edge.
+
+---
+
+- Human: (1) On save, right-align posting amounts to column 52 (emacs ledger-mode style). (2) Fix undo/redo broken for Ctrl+G (copy transaction to bottom) — establish atomic_edit() and CommandHistory infrastructure for all custom commands. (3) Add at least 4 lines of visible context below the cursor when it moves (scroll margin). (4) Downgrade minimum Python requirement to 3.8 and fix any 3.9+ runtime-incompatible code.
+- Claude: (1) Added `align_posting_amounts(text, column=52)` in `ledger_io.py`; called in `action_save()` between `journal_to_text()` and `load_text()`; exports updated in `utils/__init__.py`. (2a) Fixed `action_autofill` to use `textarea.replace(new_text, (0, 0), doc_end)` instead of `textarea.load_text(new_text)` — load_text clears EditHistory; replace() creates one undoable batch. (2b) Created `utils/atomic_edit.py` with `atomic_edit()` context manager that collapses N replace() calls into one EditHistory batch; applied to `_bulk_toggle_cleared`. (2c) Replaced commands/__init__.py stub with `Command` dataclass and `CommandHistory` (Layer 2 undo stack); added `_command_history` attribute to JournalEditor; added `action_undo`/`action_redo` overrides with CommandHistory→TextArea fallthrough; added `ctrl+z`/`ctrl+y` to JournalEditor.BINDINGS with priority=True. (3) Overrode `scroll_cursor_visible()` in `LedgerTextArea` to pass `Spacing(bottom=4)` to `scroll_to_region()`. (4) Fixed `pyproject.toml` requires-python to `>=3.8` and Black target to `py38`; fixed `highlighter.py` runtime generic `Span = tuple[...]` → `Span = Tuple[...]` from typing; updated CLAUDE.md "Target Python" to 3.8+.
+
 ---
 
 ## [0.8.2-meta] — Version bump & documentation — 2026-05-17

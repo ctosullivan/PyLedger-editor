@@ -21,10 +21,14 @@ src/ledger_editor/
 ├── keybindings/
 │   ├── office.py           — OfficeBindings mixin: MS Office / Excel action stubs
 │   └── emacs_ledger.py     — EmacsLedgerBindings mixin: Emacs Ledger-mode stubs
-├── commands/__init__.py    — Command palette provider stubs
+├── commands/__init__.py    — Command + CommandHistory (Layer 2 undo/redo stack)
+│                             and command palette provider stubs
 └── utils/
     ├── date_parser.py      — Smart date string → datetime.date
-    ├── ledger_io.py        — Thin wrappers over PyLedger.load() and EditorDocument
+    ├── ledger_io.py        — Thin wrappers over PyLedger.load() and EditorDocument;
+    │                         align_posting_amounts() (column-52 amount formatting)
+    ├── atomic_edit.py      — atomic_edit() context manager (collapses N replace()
+    │                         calls into one undo entry via EditHistory._undo_stack)
     └── file_resolver.py    — Journal file resolution (CLI → env → default → None)
 ```
 
@@ -49,8 +53,8 @@ JournalEditor (TextArea)
         │
         ├── Ctrl+S:
         │     parse_string_lenient(text) → sort → journal_to_text()
-        │     → Path.write_text()  → SaveCompleted →
-        │           BalanceSidebar.refresh_balances()
+        │     → align_posting_amounts() → Path.write_text()
+        │     → SaveCompleted → BalanceSidebar.refresh_balances()
         │
         ├── Shift+C: _cycle_flag_in_header(line) → textarea.replace()
         │
@@ -79,6 +83,17 @@ JournalEditor (TextArea)
 | Post-save checks | `PyLedger.checks.run_basic_checks(journal)` |
 | Register panel | `journal.register(query=PyLedger.Query(account=...))` |
 
+## Two-Layer Undo Stack
+
+JournalEditor maintains two separate undo stacks:
+
+| Layer | Stack | What it covers | Undo trigger |
+|---|---|---|---|
+| 1 — Text | `LedgerTextArea.history._undo_stack` (Textual EditHistory) | All free-form typing; `action_autofill` (via single `replace()`) | `Ctrl+Z` fallthrough |
+| 2 — Model | `JournalEditor._command_history` (CommandHistory) | Future operations that mutate both buffer text and in-memory model objects | `Ctrl+Z` first priority |
+
+`atomic_edit()` (`utils/atomic_edit.py`) collapses multiple `replace()` calls (e.g. `_bulk_toggle_cleared`) into one Layer-1 entry so a single `Ctrl+Z` reverses the whole operation.
+
 ## Key Design Decisions
 
 - The TextArea is the **live text buffer** — `EditorDocument` is only used for
@@ -90,5 +105,7 @@ JournalEditor (TextArea)
 - `running_balance` in RegisterPanel is a plain `Decimal` with no commodity symbol.
 - Validation errors on save produce notifications but do **not** block the write.
 - Shift+C cycles 3 states: uncleared → pending → cleared → uncleared.
+- Amount column alignment (column 52) is a post-processing step in `action_save()`;
+  it does not modify PyLedger's `journal_to_text()` output in-place.
 
 See `knowledge_base/design_decisions.md` for full rationale.

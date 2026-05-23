@@ -6,7 +6,7 @@ This is **Ledger Editor**: a terminal-based, keyboard-driven plain-text ledger
 editor built with [Textual](https://textual.textualize.io/) and
 [PyLedger](https://github.com/ctosullivan/PyLedger).
 
-- **Target Python**: 3.11+
+- **Target Python**: 3.8+
 - **UI framework**: Textual (pinned to 8.2.5)
 - **Ledger backend**: PyLedger v0.5.0 (vendor-pinned, read-only)
 - **Supported file formats**: `.journal`, `.ledger` (hledger-compatible)

@@ -85,6 +85,64 @@ def save_journal(path: Path, journal: Journal) -> None:
     """Serialise via PyLedger.journal_to_text() and write to path."""
 ```
 
+### `align_posting_amounts`
+
+```python
+def align_posting_amounts(text: str, column: int = 52) -> str:
+    """Re-space posting amount fields so each amount starts at ``column``.
+
+    Applied to the output of journal_to_text() on every Ctrl+S save.
+    Lines without an explicit amount (balance-completing postings, comment
+    lines) are passed through unchanged.  Minimum spacing between account
+    and amount is always 2 spaces.
+    """
+```
+
+---
+
+## `ledger_editor.utils.atomic_edit`
+
+### `atomic_edit`
+
+```python
+@contextmanager
+def atomic_edit(text_area: TextArea) -> Iterator[None]:
+    """Collapse all TextArea edits within this block into one undo entry.
+
+    Uses text_area.history._undo_stack (EditHistory, Textual 0.83.0).
+    Raises RuntimeError if _undo_stack is absent.
+    """
+```
+
+---
+
+## `ledger_editor.commands`
+
+### `Command`
+
+```python
+@dataclass
+class Command:
+    execute: Callable[[], None]
+    undo: Callable[[], None]
+    description: str
+```
+
+### `CommandHistory`
+
+```python
+@dataclass
+class CommandHistory:
+    """Application-level undo/redo stack for text + model operations."""
+    def execute(self, cmd: Command) -> None: ...
+    def undo(self) -> Optional[Command]: ...
+    def redo(self) -> Optional[Command]: ...
+    @property
+    def can_undo(self) -> bool: ...
+    @property
+    def can_redo(self) -> bool: ...
+```
+
 ---
 
 ## `ledger_editor.app`
@@ -116,14 +174,18 @@ class BalanceSidebar(Widget):
     async def refresh_balances(self) -> None: ...
 ```
 
-## `ledger_editor.widgets.TransactionTable`
+## `ledger_editor.widgets.JournalEditor`
 
 ```python
-class TransactionTable(Widget):
+class JournalEditor(Widget):
     def __init__(self, journal_path: Path) -> None: ...
     def action_toggle_cleared(self) -> None: ...
     def action_save(self) -> None: ...
     def action_autofill(self) -> None: ...
+    def action_undo(self) -> None:
+        """Consults CommandHistory first; falls through to LedgerTextArea.action_undo()."""
+    def action_redo(self) -> None:
+        """Consults CommandHistory first; falls through to LedgerTextArea.action_redo()."""
 ```
 
 ## `ledger_editor.widgets.FilterPopup`

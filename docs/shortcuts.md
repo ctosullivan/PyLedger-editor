@@ -4,7 +4,7 @@
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+S` | Save: merge any active filter view, sort transactions by date, re-align whitespace, then write (validation errors shown as warnings, do not block save) |
+| `Ctrl+S` | Save: merge any active filter view, sort transactions by date, re-align posting amounts to column 52 (emacs ledger-mode style), then write (validation errors shown as warnings, do not block save) |
 | `Ctrl+O` | Open / close transaction filter popup |
 
 ## Search
@@ -58,8 +58,10 @@ The view filter changes what the editor shows without hiding any data from disk:
 | Shortcut | Action |
 |----------|--------|
 | `Enter` | When cursor is on a transaction header (and **not** at column 0) or posting line, the new line is auto-indented with 4 spaces. At column 0 of a header, Enter inserts a plain newline (useful for adding blank lines between transactions). TAB is reserved for focus cycling. |
-| `Ctrl+G` | **Single cursor**: duplicate the current transaction block to end of file with today's date. **Multi-block selection** (from repeated `Ctrl+T`): duplicate all selected transaction blocks to end of file, each with today's date. |
+| `Ctrl+G` | **Single cursor**: duplicate the current transaction block to end of file with today's date. **Multi-block selection** (from repeated `Ctrl+T`): duplicate all selected transaction blocks to end of file, each with today's date. Fully undoable with `Ctrl+Z`. |
 | `Ctrl+D` | Insert today's date at the cursor position |
+| `Ctrl+Z` | Undo. Reverses custom commands (CommandHistory) first; if none, falls through to native TextArea undo for regular text edits. |
+| `Ctrl+Y` | Redo. Mirrors `Ctrl+Z` fallthrough logic. |
 
 ## Text Navigation (custom bindings)
 
