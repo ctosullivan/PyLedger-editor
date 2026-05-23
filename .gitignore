@@ -2,6 +2,7 @@
 vendor/
 personal.journal
 tests/fixtures/sandbox.journal
+run.ps1
 run_uat.ps1
 *.journal.bak
 *.ledger.bak
