@@ -13,6 +13,12 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Fix invisible ▲/▼ navigation buttons in the search bar.
+- Claude: The `border: tall` rule from the global Button theme consumed both rows of the 1-row-high buttons, making them invisible. Added `border: none; padding: 0 1` to the base `SearchBar Button` CSS and added Monokai Pro-scoped overrides (`background: $panel; color: $foreground`) with a hover state (`background: $primary; color: $background`).
+
+- Human: When Ctrl+F search bar is open, Tab should cycle only between the find input and the editor — not through the ▲/▼ navigation buttons.
+- Claude: Added `on_mount` to `SearchBar` that sets `can_focus = False` on both navigation buttons, removing them from the tab order while leaving them fully clickable.
+
 - Human: Update PyLedger vendor to v0.5.1 which correctly handles column-0 `;`/`#` comment lines inside open transaction blocks.
 - Claude: Removed write-lock, deleted stub vendor/pyledger, fresh-cloned ctosullivan/PyLedger main branch (commit b2d10be), applied Windows casing fix (pyLedger → PyLedger), removed cloned .git so vendor files remain tracked in main repo, reinstalled in venv, updated pyproject.toml (`PyLedger==0.5.0` → `==0.5.1`), CLAUDE.md, requirements.txt, and knowledge_base/pyledger_api_notes.md.
 

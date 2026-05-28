@@ -64,6 +64,18 @@ App.-theme-monokai-pro SearchBar Input:focus {
     border: none;
 }
 
+App.-theme-monokai-pro SearchBar Button {
+    background: $panel;
+    color: $foreground;
+    border: none;
+}
+
+App.-theme-monokai-pro SearchBar Button:hover {
+    background: $primary;
+    color: $background;
+    border: none;
+}
+
 App.-theme-monokai-pro DataTable {
     background: $background;
     color: $foreground;

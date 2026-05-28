@@ -89,6 +89,8 @@ class LedgerApp(App[None]):
         width: auto;
         min-width: 3;
         height: 1;
+        border: none;
+        padding: 0 1;
     }
     """
 

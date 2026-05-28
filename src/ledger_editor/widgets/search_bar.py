@@ -94,6 +94,11 @@ class SearchBar(Widget):
     # Public interface (called from JournalEditor actions)
     # ------------------------------------------------------------------
 
+    def on_mount(self) -> None:
+        """Remove navigation buttons from the tab order so Tab goes straight to the editor."""
+        for btn in self.query(Button):
+            btn.can_focus = False
+
     def open_bar(self, initial_direction: int = 1) -> None:
         """Reveal the search bar and focus the input field.
 
