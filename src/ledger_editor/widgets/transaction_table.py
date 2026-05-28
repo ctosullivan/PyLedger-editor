@@ -210,6 +210,9 @@ class JournalEditor(Widget):
         self._view_filter_mode: int = 0          # 0=All, 1=Cleared, 2=Unreconciled
         self._filter_journal: object | None = None
         self._filter_visible_indices: list[int] = []
+        # Non-transaction blocks (directives, comments, blank-line separators)
+        # captured when entering a filter so they survive the mode-0 restore.
+        self._filter_non_txn_blocks: list[str] = []
 
     def compose(self) -> ComposeResult:
         """Render ViewFilterBar, LedgerTextArea, and hidden SearchBar."""
@@ -436,8 +439,13 @@ class JournalEditor(Widget):
         textarea = self.query_one("#journal_textarea", LedgerTextArea)
 
         if self._view_filter_mode == 0:
-            # Entering a filtered view — snapshot the full journal.
+            # Entering a filtered view — snapshot the full journal and the
+            # non-transaction blocks so directives/comments survive mode-0 restore.
             self._filter_journal, _ = PyLedger.parse_string_lenient(textarea.text)
+            from ledger_editor.utils.ledger_io import split_journal_segments  # noqa: PLC0415
+            self._filter_non_txn_blocks, _ = split_journal_segments(
+                textarea.text, self._filter_journal.transactions  # type: ignore[union-attr]
+            )
         else:
             # Already filtered — merge edits before switching.
             self._merge_filtered_edits(textarea)
@@ -452,12 +460,29 @@ class JournalEditor(Widget):
         journal = self._filter_journal
 
         if self._view_filter_mode == 0:
-            # Restore full journal.
+            # Restore full journal, preserving directives/comments/blank-line
+            # separators captured in _filter_non_txn_blocks at filter entry.
             if journal is not None:
-                full_text = PyLedger.journal_to_text(journal)
+                blocks = self._filter_non_txn_blocks
+                txns = journal.transactions
+                if blocks and len(blocks) == len(txns) + 1:
+                    # Exact match: weave non-txn blocks between transactions.
+                    txn_texts = [PyLedger.transaction_to_text(t) for t in txns]
+                    parts = [blocks[0]]
+                    for i, txn_text in enumerate(txn_texts):
+                        parts.append(txn_text)
+                        parts.append(blocks[i + 1])
+                    full_text = "".join(parts)
+                elif blocks:
+                    # Count mismatch (txns added/deleted in filtered view):
+                    # preserve preamble, fall back to journal_to_text for body.
+                    full_text = blocks[0] + PyLedger.journal_to_text(journal)
+                else:
+                    full_text = PyLedger.journal_to_text(journal)
             else:
                 full_text = textarea.text
             self._filter_journal = None
+            self._filter_non_txn_blocks = []
             self._filter_visible_indices = []
             textarea.load_text(full_text)
         else:

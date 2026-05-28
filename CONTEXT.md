@@ -2,41 +2,44 @@
 
 ## Current Task
 
-Full directive preservation on Ctrl+S save: preamble + interleaved directives between transactions.
+Fix directive/comment loss when cycling through the reconcile view filter (Ctrl+L).
 
 ## Where We Are
 
-All code changes done. 216 tests pass.
+All code changes done. 220 tests pass. Not yet committed.
 
 ## Decisions In Flight
 
-- `atomic_edit()` accesses `text_area.history._undo_stack` (EditHistory private API,
-  Textual 0.83.0). This is intentional and documented with a RuntimeError guard. If
-  Textual is upgraded, check that `_undo_stack` still exists on `EditHistory`.
-- `split_journal_segments` uses `Transaction.source_span` for precise line ranges.
-  If source_span is None for any transaction, it falls back to `split_preamble`
-  semantics (preamble-only, empty inter/trailing blocks).
-- `action_save()` now uses `transaction_to_text(t)` per-transaction instead of
-  `journal_to_text(journal)`. The Journal object is still kept for `run_basic_checks`.
-- Non-txn blocks maintain their POSITIONAL structure (block i is between the i-th and
-  (i+1)-th transaction in the SORTED output). Directives move to the structural gap
-  between their adjacent transactions in sorted order, not to the original adjacent
-  transactions. This is the most defensible semantics for the general sort case.
+- `_filter_non_txn_blocks` is snapshotted from the raw textarea text at filter-entry time
+  (mode 0 → 1), using `split_journal_segments` which relies on `Transaction.source_span`.
+- The mode-0 restore path weaves blocks between transactions using `transaction_to_text`
+  per transaction (same as `action_save`), preserving the normalized formatting.
+- If transaction count changes in the filtered view (adds/deletes), the restore falls back
+  to preamble-only (if available) or `journal_to_text` — directives may be lost in that
+  edge case, but it is safe and was the previous behaviour.
+- `_filter_non_txn_blocks` is cleared alongside `_filter_journal` when mode resets to 0.
+- The filtered display (modes 1 and 2) remains transactions-only — directives are NOT
+  shown in filtered views, which is intentional.
+- `atomic_edit()` accesses `text_area.history._undo_stack` (Textual private API).
+- `split_journal_segments` uses `Transaction.source_span` (1-based inclusive lines).
+- `journal_to_text()` is no longer used in either `action_save` or `_apply_view_filter`
+  mode-0; it remains as a fallback only.
 
-## Files Changed This Session
+## Files Changed This Session (cumulative from session start)
 
 | File | Change |
 |---|---|
-| `vendor/pyledger/` | Full directory replaced: fresh clone of ctosullivan/PyLedger@b2d10be (v0.5.1), .git removed, Windows casing fixed |
-| `pyproject.toml` | `PyLedger==0.5.0` → `PyLedger==0.5.1` |
-| `CLAUDE.md` | "PyLedger v0.5.0" → "PyLedger v0.5.1" |
-| `requirements.txt` | Refreshed via `pip freeze` |
-| `knowledge_base/pyledger_api_notes.md` | Updated version, path casing, added v0.5.1 change notes |
-| `src/ledger_editor/utils/ledger_io.py` | Added `_TXN_DATE_RE`, `split_preamble()`, `split_journal_segments()`; updated `__all__` and `TYPE_CHECKING` imports |
-| `src/ledger_editor/widgets/transaction_table.py` | `action_save()`: use `split_journal_segments` + per-transaction `transaction_to_text` + interleaved reassembly |
-| `tests/test_ledger_io.py` | Added `TestSplitPreamble` (5 tests) and `TestSplitJournalSegments` (6 tests); updated imports |
-| `dev-docs/api-spec.md` | Added `split_preamble` and `split_journal_segments` signatures |
-| `CHANGELOG.md` | Two new `[Unreleased]` entries |
+| `vendor/pyledger/` | Full directory replaced: ctosullivan/PyLedger@b2d10be (v0.5.1) |
+| `pyproject.toml` | `PyLedger==0.5.0` → `==0.5.1`; ledger-editor `0.8.2` → `0.9.0` |
+| `CLAUDE.md` | PyLedger version reference updated |
+| `requirements.txt` | Refreshed |
+| `knowledge_base/pyledger_api_notes.md` | v0.5.1 notes added |
+| `src/ledger_editor/utils/ledger_io.py` | Added `split_preamble`, `split_journal_segments`, `_TXN_DATE_RE` |
+| `src/ledger_editor/widgets/transaction_table.py` | `action_save`: segment-based reassembly; `__init__`: `_filter_non_txn_blocks`; `action_cycle_view_filter`: snapshot non-txn blocks; `_apply_view_filter` mode-0: weave restore |
+| `tests/test_ledger_io.py` | `TestSplitPreamble` + `TestSplitJournalSegments` |
+| `tests/test_view_filter.py` | `DIRECTIVE_JOURNAL` fixture + `TestViewFilterDirectivePreservation` (4 tests) |
+| `dev-docs/api-spec.md` | `split_preamble` + `split_journal_segments` signatures |
+| `CHANGELOG.md` | 3 new `[Unreleased]` entries |
 
 ## What NOT To Revisit
 
@@ -47,18 +50,13 @@ All code changes done. 216 tests pass.
 
 ## Authoritative Settled Facts
 
-- `Transaction` uses `cleared: bool` and `pending: bool` (no `flag: str` field)
-- `journal_to_text()` does NOT preserve directives or standalone comments; the editor
-  no longer calls it for save output — it calls `transaction_to_text()` per transaction
-  and weaves non-txn blocks between them
-- `split_journal_segments(text, txns)` extracts non-txn content using SourceSpan line
-  ranges (1-based inclusive); len(non_txn_blocks) == len(txn_blocks) + 1
-- `align_posting_amounts()` peels inline comments before matching and reattaches after
-- `Ctrl+S` writes via `Path.write_text(sorted_text, encoding="utf-8")`
-- PyLedger v0.5.1: column-0 `;`/`#` lines inside open transaction blocks are correctly
-  discarded (not captured); no API changes vs v0.5.0
-- `SourceSpan.start_line` and `.end_line` are 1-based inclusive; 0-based exclusive end
-  = `end_line` (same numeric value as 1-based inclusive end)
+- `Transaction` uses `cleared: bool` and `pending: bool`
+- `journal_to_text()` does not preserve directives; the editor no longer calls it for
+  save output or mode-0 restore — it calls `transaction_to_text()` per transaction
+- `split_journal_segments(text, txns)` extracts non-txn blocks using SourceSpan
+- `SourceSpan.start_line` / `.end_line` are 1-based inclusive
+- `_filter_non_txn_blocks` length = `len(_filter_journal.transactions) + 1`
+- Filtered view (modes 1 and 2) is transactions-only — no directives shown in filter
 
 ## Blockers / Open Questions
 
@@ -67,7 +65,7 @@ None.
 ## Recent Git State
 
 ```
+5f86436 feat: preserve directives on save; update PyLedger to v0.5.1
 29b96e1 chore: ignore all .ps1 files
-14896c7 feat: amount alignment, two-layer undo/redo, scroll margin, Python 3.8 compat
-(above session's changes not yet committed)
+(above session's post-commit changes not yet committed)
 ```

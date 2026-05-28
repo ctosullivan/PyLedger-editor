@@ -13,6 +13,11 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Directives and account aliases are lost when cycling through the reconcile view filter (Ctrl+L); comments must also be preserved.
+- Claude: Added `_filter_non_txn_blocks: list[str]` to `JournalEditor`. When entering a filtered view, `action_cycle_view_filter()` now calls `split_journal_segments()` to snapshot the non-transaction content (P directives, account/commodity/payee declarations, standalone comments, blank-line separators) alongside `_filter_journal`. `_apply_view_filter()` mode-0 restore path uses these blocks to weave directives back between sorted transaction texts instead of calling the directive-stripping `journal_to_text()`. Falls back to preamble-only or `journal_to_text` if transaction count changed in filtered view. Save from filtered view (Ctrl+S) inherits the fix automatically. Added 4 tests in `TestViewFilterDirectivePreservation`.
+
+---
+
 - Human: Fix invisible ▲/▼ navigation buttons in the search bar.
 - Claude: The `border: tall` rule from the global Button theme consumed both rows of the 1-row-high buttons, making them invisible. Added `border: none; padding: 0 1` to the base `SearchBar Button` CSS and added Monokai Pro-scoped overrides (`background: $panel; color: $foreground`) with a hover state (`background: $primary; color: $background`).
 

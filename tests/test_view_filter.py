@@ -8,6 +8,23 @@ from ledger_editor.widgets.transaction_table import JournalEditor
 from ledger_editor.widgets.view_filter_bar import ViewFilterBar
 from textual.widgets import TextArea
 
+# A journal with preamble directives and an interleaved directive between transactions.
+DIRECTIVE_JOURNAL = (
+    "P 2024-01-01 USD EUR 0.92\n"
+    "account assets:bank:checking\n"
+    "; file header comment\n"
+    "\n"
+    "2024-01-10 * Opening balances\n"
+    "    assets:bank:checking    £1000.00\n"
+    "    equity:opening-balances\n"
+    "\n"
+    "P 2024-01-12 USD EUR 0.93\n"
+    "\n"
+    "2024-01-15 Groceries\n"
+    "    expenses:food    £42.50\n"
+    "    assets:bank:checking\n"
+)
+
 # A journal with one cleared and one uncleared transaction.
 MIXED_JOURNAL = (
     "2024-01-10 * Opening balances\n"
@@ -275,3 +292,85 @@ class TestViewFilterEditing:
             text = textarea.text
             assert "Initial deposit" in text
             assert "Groceries" in text
+
+
+class TestViewFilterDirectivePreservation:
+    """Directives, aliases, and comments survive filter cycling."""
+
+    async def test_preamble_directives_survive_full_cycle(
+        self, tmp_path: Path
+    ) -> None:
+        """P directives and account decls before the first transaction are intact after 3× Ctrl+L."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(DIRECTIVE_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            for _ in range(3):
+                editor.action_cycle_view_filter()
+                await pilot.pause()
+
+            text = textarea.text
+            assert "P 2024-01-01 USD EUR 0.92" in text
+            assert "account assets:bank:checking" in text
+
+    async def test_preamble_comment_survives_full_cycle(
+        self, tmp_path: Path
+    ) -> None:
+        """Standalone column-0 comment before first transaction survives 3× Ctrl+L."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(DIRECTIVE_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            for _ in range(3):
+                editor.action_cycle_view_filter()
+                await pilot.pause()
+
+            assert "; file header comment" in textarea.text
+
+    async def test_interleaved_directive_survives_full_cycle(
+        self, tmp_path: Path
+    ) -> None:
+        """P directive between two transactions survives 3× Ctrl+L."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(DIRECTIVE_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            for _ in range(3):
+                editor.action_cycle_view_filter()
+                await pilot.pause()
+
+            assert "P 2024-01-12 USD EUR 0.93" in textarea.text
+
+    async def test_directives_survive_save_from_filtered_view(
+        self, tmp_path: Path
+    ) -> None:
+        """Directives are written to disk when Ctrl+S is pressed in a filtered view."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(DIRECTIVE_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+
+            editor.action_cycle_view_filter()  # → Cleared
+            await pilot.pause()
+            editor.action_save()
+            await pilot.pause()
+
+        content = journal.read_text(encoding="utf-8")
+        assert "P 2024-01-01 USD EUR 0.92" in content
+        assert "account assets:bank:checking" in content
+        assert "P 2024-01-12 USD EUR 0.93" in content
+        assert "; file header comment" in content
