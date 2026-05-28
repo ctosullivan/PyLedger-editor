@@ -13,6 +13,16 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Update PyLedger vendor to v0.5.1 which correctly handles column-0 `;`/`#` comment lines inside open transaction blocks.
+- Claude: Removed write-lock, deleted stub vendor/pyledger, fresh-cloned ctosullivan/PyLedger main branch (commit b2d10be), applied Windows casing fix (pyLedger → PyLedger), removed cloned .git so vendor files remain tracked in main repo, reinstalled in venv, updated pyproject.toml (`PyLedger==0.5.0` → `==0.5.1`), CLAUDE.md, requirements.txt, and knowledge_base/pyledger_api_notes.md.
+
+---
+
+- Human: P directives (and other hledger directives) are discarded when the journal is saved via Ctrl+S; they should be retained, including directives interleaved between transactions.
+- Claude: Added `split_journal_segments(text, transactions) → tuple[list[str], list[str]]` to `ledger_editor.utils.ledger_io`. Uses Transaction.source_span to identify precise transaction line ranges and extract all non-transaction content (directives, comments, blank-line separators) into positional blocks. Updated `action_save()` to use `split_journal_segments` + per-transaction `transaction_to_text` serialisation + interleaved reassembly, replacing `journal_to_text`. Added `TestSplitJournalSegments` (6 tests). Also added `split_preamble` (used as fallback when source_span is unavailable).
+
+---
+
 - Human: Posting line with no amount but an inline comment (e.g. `    expenses:food  ; memo`) was being aligned as if the comment were an amount field.
 - Claude: Inline comments (`  ; ...`) are now peeled from the posting line before regex matching and reattached after; a body with no `( {2,})` separator is correctly skipped. Added `test_posting_no_amount_inline_comment_unchanged` test.
 
@@ -20,11 +30,6 @@ Format per entry:
 
 - Human: Postings with suffix-currency amounts and inline comments (e.g. `    expenses:food  50.00 EUR  ; note`) were misaligned — the greedy account-name regex consumed amount words as account, leaving only `; note` as the "amount".
 - Claude: Same inline-comment pre-peel fix resolves this; the regex now operates on the comment-free body only. Added `test_posting_amount_with_inline_comment_aligned` test.
-
----
-
-### Known Limitations
-- Standalone comment lines within transaction blocks (`    ; note`) are removed on Ctrl+S. PyLedger v0.5.0 `journal_to_text()` does not serialise comments; `align_posting_amounts()` preserves them when called directly, but the Ctrl+S round-trip (`parse_string_lenient` → `journal_to_text`) strips them before alignment runs.
 
 ---
 

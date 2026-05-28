@@ -378,11 +378,21 @@ class JournalEditor(Widget):
         for err in parse_errors:
             self.app.notify(str(err), severity="warning")
 
-        journal.transactions.sort(key=lambda t: t.date)
-        sorted_text = PyLedger.journal_to_text(journal)
+        from ledger_editor.utils.ledger_io import align_posting_amounts, split_journal_segments  # noqa: PLC0415
+        # Extract non-transaction blocks (directives, comments, blank-line separators)
+        # before sorting so they can be woven back in at their original positions.
+        non_txn_blocks, _ = split_journal_segments(text, journal.transactions)
 
-        from ledger_editor.utils.ledger_io import align_posting_amounts  # noqa: PLC0415
-        sorted_text = align_posting_amounts(sorted_text)
+        journal.transactions.sort(key=lambda t: t.date)
+
+        # Serialise each sorted transaction, then interleave with the preserved
+        # non-transaction blocks: preamble + txn[0] + sep[1] + txn[1] + ... + trailer.
+        sorted_txn_texts = [PyLedger.transaction_to_text(t) for t in journal.transactions]
+        parts = [non_txn_blocks[0]]
+        for i, txn_text in enumerate(sorted_txn_texts):
+            parts.append(txn_text)
+            parts.append(non_txn_blocks[i + 1])
+        sorted_text = align_posting_amounts("".join(parts))
 
         saved_loc = textarea.cursor_location
         textarea.load_text(sorted_text)

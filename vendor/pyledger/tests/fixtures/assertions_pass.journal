@@ -1,0 +1,14 @@
+; Fixture: all balance assertions hold.
+; Used by TestCheckAssertions and CLI assertion tests.
+
+2024-01-01 Opening balance
+    assets:checking    £500 = £500
+    equity:opening    -£500
+
+2024-01-15 Groceries
+    expenses:food      £80
+    assets:checking   -£80 = £420
+
+2024-01-20 Salary
+    assets:checking    £1000 = £1420
+    income:salary     -£1000

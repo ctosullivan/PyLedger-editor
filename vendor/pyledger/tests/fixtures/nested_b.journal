@@ -1,0 +1,7 @@
+; nested_b.journal — middle file for recursive include tests
+
+include nested_c.journal
+
+2024-03-01 Nested B transaction
+    expenses:utilities         £60.00
+    assets:bank:checking      -£60.00

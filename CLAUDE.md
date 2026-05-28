@@ -8,7 +8,7 @@ editor built with [Textual](https://textual.textualize.io/) and
 
 - **Target Python**: 3.8+
 - **UI framework**: Textual (pinned to 8.2.5)
-- **Ledger backend**: PyLedger v0.5.0 (vendor-pinned, read-only)
+- **Ledger backend**: PyLedger v0.5.1 (vendor-pinned, read-only)
 - **Supported file formats**: `.journal`, `.ledger` (hledger-compatible)
 
 See `dev-docs/architecture.md` for the module layout and data-flow diagram.

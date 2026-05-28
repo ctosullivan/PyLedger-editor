@@ -1,0 +1,5 @@
+; glob_2.journal — second glob target fixture
+
+2024-05-02 Glob two transaction
+    expenses:transport         £12.00
+    assets:bank:checking      -£12.00

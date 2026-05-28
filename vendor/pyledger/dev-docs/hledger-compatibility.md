@@ -113,14 +113,19 @@ A transaction block is the fundamental unit of a journal file.
 
 ### Comments
 
-| Feature | Example | Notes |
-|---|---|---|
-| Whole-line `;` | `; this is a comment` | Any line whose first non-space character is `;` |
-| Whole-line `#` | `# another comment` | Any line whose first non-space character is `#` |
-| Inline `;` on transaction | `2024-01-15 Desc  ; comment` | `;` after description; captured in `Transaction.comment` |
-| Inline `;` on posting | `  expenses:food  £30  ; note` | `;` after amount; stripped during parsing |
-| Follow-on comment line | `    ; continued note` | Indented line starting with `;` inside a transaction block; silently skipped |
-| Block comment | `comment` / `end comment` | All lines between the two directives are skipped; unclosed block runs to EOF |
+Three distinct comment forms are supported. **Indentation is the discriminator** between a standalone top-level comment and a follow-on comment inside a transaction:
+
+| Feature | Example | Indented? | Notes |
+|---|---|---|---|
+| Top-level `#` | `# a note` | No (column 0) | Always silently discarded; never captured into any field; never extends a transaction's `source_span` |
+| Top-level `;` | `; a note` | No (column 0) | Same as `#`; always discarded even when inside an open transaction block (no blank-line separator) |
+| Inline `;` on transaction header | `2024-01-15 Desc  ; comment` | N/A (same line) | Only `;` works; `#` is NOT an inline comment delimiter. Captured in `Transaction.inline_comment` |
+| Inline `;` on posting | `  expenses:food  £30  ; note` | N/A (same line) | Only `;` works. Captured in `Posting.inline_comment`; stripped before amount is parsed |
+| Follow-on `;` inside transaction | `    ; continued note` | Yes | Indented `;` line inside an open transaction block. Appended (newline-separated) to the preceding posting's `inline_comment`, or to `Transaction.inline_comment` if no posting has been seen yet. Extends `source_span.end_line`. |
+| Follow-on `#` inside transaction | `    # a note` | Yes | Indented `#` inside a transaction. Extends `source_span.end_line` but text is NOT captured into any comment field. |
+| Block comment | `comment` / `end comment` | No (directives) | All lines between the two directives are skipped. `comment` may have trailing text (ignored). Unclosed block runs to EOF. Nested `comment` inside a block is ignored. |
+
+**`#` is never an inline comment delimiter.** Only `;` introduces inline comments on the same line as an entry. A `#` appearing in a transaction description remains part of the description.
 
 ### Directives
 

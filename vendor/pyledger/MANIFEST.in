@@ -1,0 +1,5 @@
+# Exclude AI-workflow files from the source distribution (sdist).
+# The PyLedger/ package, tests/, docs/ (human docs), README.md,
+# LICENSE, and pyproject.toml are included by setuptools automatically.
+exclude CLAUDE.md CHANGELOG.md ROADMAP.md
+recursive-exclude dev-docs *

@@ -1,0 +1,7 @@
+; nested_a.journal — root file for recursive include tests
+
+include nested_b.journal
+
+2024-02-01 Nested A transaction
+    assets:bank:checking       £200.00
+    income:salary             -£200.00

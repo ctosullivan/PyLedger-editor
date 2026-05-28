@@ -20,9 +20,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from PyLedger.models import Journal
+    from PyLedger.models import Journal, Transaction
 
-__all__ = ["align_posting_amounts", "load_journal", "save_journal"]
+__all__ = [
+    "align_posting_amounts",
+    "load_journal",
+    "save_journal",
+    "split_journal_segments",
+    "split_preamble",
+]
 
 # Matches an hledger posting line that carries an explicit amount.
 # Purpose: identify posting lines to re-space after journal_to_text() formats them,
@@ -63,6 +69,123 @@ __all__ = ["align_posting_amounts", "load_journal", "save_journal"]
 #   "    exp:food  50 EUR  ; note"    — comment peeled; body "    exp:food  50 EUR"
 #                                       matches; amount = "50 EUR"; comment reattached.
 _POSTING_AMOUNT_RE = re.compile(r"^(    )([^\s;]\S*(?:[ ]\S+)*)( {2,})(\S.*)$")
+
+# Matches the start of a transaction header: an ISO date (YYYY-MM-DD) at the
+# very beginning of a line.
+# Purpose: locate where the first transaction begins so all content that
+#          precedes it (P directives, account/commodity/payee declarations,
+#          standalone comments, blank lines) can be extracted as a preamble
+#          block and preserved across sort-and-reserialise cycles.
+#
+# Group breakdown: none — no capture groups; .search() start position is used.
+#
+# Edge cases:
+#   - "P 2024-01-01 ..." starts with "P ", not a digit → never matches; correctly
+#     treated as preamble.
+#   - A transaction header with a cleared flag ("2024-01-01 * ...") starts with the
+#     date, so it matches correctly.
+#   - A date-like string embedded in a description or posting line cannot appear at
+#     column 0 in valid hledger format, so false positives are not a concern.
+_TXN_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}", re.MULTILINE)
+
+
+def split_preamble(text: str) -> tuple[str, str]:
+    """Split journal text into (preamble, transactions).
+
+    The preamble contains all content before the first transaction header:
+    P directives, account/commodity/payee declarations, standalone comments,
+    and blank lines. The second element starts at the first line whose first
+    ten characters match YYYY-MM-DD.
+
+    Known limitation: directives interleaved *between* transactions are not
+    preserved; only the pre-first-transaction block is. This covers the dominant
+    real-world pattern (declarations at the top of the file).
+
+    Args:
+        text: Raw journal text (from the editor textarea).
+
+    Returns:
+        A tuple ``(preamble, body)`` where ``preamble`` may be empty and
+        ``body`` starts at the first transaction header line. If no
+        transaction is found, returns ``(text, "")``.
+    """
+    m = _TXN_DATE_RE.search(text)
+    if m is None:
+        return text, ""
+    return text[: m.start()], text[m.start():]
+
+
+def split_journal_segments(
+    text: str,
+    transactions: list[Transaction],
+) -> tuple[list[str], list[str]]:
+    """Split journal text into non-transaction blocks and transaction blocks.
+
+    Uses Transaction.source_span (1-based, inclusive line numbers) to locate
+    each transaction precisely, so non-transaction content — P directives,
+    account/commodity/payee declarations, standalone comments, blank lines —
+    is extracted into separate blocks that survive sort-and-reserialise cycles.
+
+    Returns two parallel structures that together span the whole text:
+
+    - non_txn_blocks: N+1 strings where N = len(transactions).
+      non_txn_blocks[0] is the preamble (before the first transaction).
+      non_txn_blocks[i] for i > 0 is the content between txn_blocks[i-1]
+      and txn_blocks[i] in the original file.
+      non_txn_blocks[-1] is trailing content after the last transaction.
+
+    - txn_blocks: N strings, each the verbatim source lines of one transaction,
+      in original file order (sorted by source_span.start_line, not by date).
+
+    When the caller sorts transactions by date and reassembles by interleaving
+    serialised transaction texts with the original non_txn_blocks in positional
+    order, interleaved directives remain between their adjacent transactions.
+
+    Falls back to split_preamble semantics (non-empty preamble block only,
+    empty inter/trailing blocks) if any Transaction.source_span is None.
+
+    Args:
+        text: Raw journal text from the editor textarea.
+        transactions: Parsed Transaction objects, in any order.
+
+    Returns:
+        ``(non_txn_blocks, txn_blocks)`` with
+        ``len(non_txn_blocks) == len(txn_blocks) + 1``.
+    """
+    if not transactions:
+        return [text], []
+
+    lines = text.splitlines(keepends=True)
+
+    # Build (start_0based, end_0based_exclusive) from each SourceSpan.
+    # SourceSpan.start_line and .end_line are 1-based inclusive, so:
+    #   0-based start = start_line - 1
+    #   0-based exclusive end = end_line  (same numeric value as 1-based inclusive end)
+    spans: list[tuple[int, int]] = []
+    for txn in transactions:
+        span = getattr(txn, "source_span", None)
+        if span is None:
+            # Fallback: source_span unavailable; preserve preamble only.
+            preamble, _ = split_preamble(text)
+            n = len(transactions)
+            return [preamble] + [""] * n, [""] * n
+        spans.append((span.start_line - 1, span.end_line))
+
+    # Sort by file position to iterate in original source order.
+    spans.sort(key=lambda s: s[0])
+
+    non_txn_blocks: list[str] = []
+    txn_blocks: list[str] = []
+    prev_end = 0
+
+    for start, end in spans:
+        non_txn_blocks.append("".join(lines[prev_end:start]))
+        txn_blocks.append("".join(lines[start:end]))
+        prev_end = end
+
+    non_txn_blocks.append("".join(lines[prev_end:]))  # trailing content
+
+    return non_txn_blocks, txn_blocks
 
 
 def align_posting_amounts(text: str, column: int = 52) -> str:

@@ -98,6 +98,39 @@ def align_posting_amounts(text: str, column: int = 52) -> str:
     """
 ```
 
+### `split_preamble`
+
+```python
+def split_preamble(text: str) -> tuple[str, str]:
+    """Split journal text into (preamble, body).
+
+    The preamble is all content before the first ISO-date transaction header.
+    Returns (text, "") when no transactions are found.
+    Used internally by split_journal_segments as a fallback.
+    """
+```
+
+### `split_journal_segments`
+
+```python
+def split_journal_segments(
+    text: str,
+    transactions: list[Transaction],
+) -> tuple[list[str], list[str]]:
+    """Split journal text into non-transaction blocks and transaction blocks.
+
+    Uses Transaction.source_span (1-based inclusive line numbers) to extract
+    each transaction's lines. Returns (non_txn_blocks, txn_blocks) where
+    len(non_txn_blocks) == len(txn_blocks) + 1. non_txn_blocks[0] is the
+    preamble; non_txn_blocks[i] for i > 0 is the inter-transaction content
+    (P directives, comments, blank lines) between txn_blocks[i-1] and
+    txn_blocks[i]; non_txn_blocks[-1] is trailing content.
+
+    Falls back to split_preamble semantics when source_span is unavailable.
+    Used by action_save to preserve directives across sort-and-reserialise.
+    """
+```
+
 ---
 
 ## `ledger_editor.utils.atomic_edit`

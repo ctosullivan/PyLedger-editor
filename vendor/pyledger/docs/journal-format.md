@@ -86,26 +86,75 @@ PyLedger records it as `None`; the value is inferred at report time.
 
 ## Comments
 
-```
-; whole-line comment
-# also a whole-line comment
+### Standalone line comments
 
-2024-01-15 Coffee  ; inline comment on the transaction header
-    expenses:food  £4.50  ; inline comment on a posting
+Any line beginning with `#` or `;` at column 0 is a comment and is silently
+ignored. These may appear anywhere in the file — before, after, or between
+transactions — without affecting parsing.
+
+```
+# a top-level note
+; another top-level note
+
+2024-01-15 Coffee
+    expenses:food  £4.50
     assets:bank
-    ; indented follow-on comment — silently skipped
 ```
 
-**Block comments:**
+### Same-line inline comments
+
+A `;` after an entry (transaction header or posting line) begins an inline
+comment that runs to the end of the line. **Only `;` works as an inline
+comment delimiter; `#` does not.**
+
+```
+2024-01-15 Coffee  ; business meeting      ← transaction inline comment
+    expenses:food  £4.50  ; cappuccino     ← posting inline comment
+    assets:bank
+```
+
+Both comments are stored in the `inline_comment` field of the corresponding
+`Transaction` or `Posting` object. They can be round-tripped via the writer.
+
+### Follow-on comment lines (inside transactions)
+
+An **indented** `;` line inside a transaction block is a follow-on comment.
+It is appended (newline-separated) to the `inline_comment` of the preceding
+posting, or to the transaction's `inline_comment` if it appears before any
+postings.
+
+```
+2024-01-15 Coffee
+    ; this is a transaction comment (before first posting)
+    expenses:food  £4.50
+    ; this appends to expenses:food.inline_comment
+    assets:bank
+```
+
+An **indented** `#` line inside a transaction extends the transaction's source
+span (line coverage) but its text is not captured in any comment field.
+
+> **Key distinction:** A `;` or `#` at **column 0** is always a top-level
+> comment, even inside an open transaction block with no blank-line separator.
+> Only **indented** lines (leading whitespace) are treated as follow-on
+> comments.
+
+### Block comments
+
+A `comment` directive opens a block that is ignored until `end comment` or
+end of file. Anything may appear inside the block — transaction-like lines,
+directives, other `comment` keywords — all are discarded.
 
 ```
 comment
 Everything here is ignored, including
   2024-01-01 fake transaction
+  account expenses:food
 end comment
 ```
 
-An unclosed `comment` block silently consumes the rest of the file.
+The `comment` line may have trailing text (it is ignored). An unclosed block
+silently consumes the rest of the file.
 
 ---
 

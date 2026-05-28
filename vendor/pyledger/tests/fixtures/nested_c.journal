@@ -1,0 +1,5 @@
+; nested_c.journal — leaf file for recursive include tests
+
+2024-04-01 Nested C transaction
+    expenses:food:groceries    £30.00
+    assets:bank:checking      -£30.00

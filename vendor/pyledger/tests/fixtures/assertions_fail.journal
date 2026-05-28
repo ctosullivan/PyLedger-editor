@@ -1,0 +1,10 @@
+; Fixture: one balance assertion that fails.
+; Used by CLI assertion tests to verify exit-1 behaviour and -I suppression.
+
+2024-01-01 Opening balance
+    assets:checking    £500 = £500
+    equity:opening    -£500
+
+2024-01-15 Groceries
+    expenses:food      £80
+    assets:checking   -£80 = £999

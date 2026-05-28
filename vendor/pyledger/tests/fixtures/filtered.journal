@@ -1,0 +1,27 @@
+; filtered.journal — extended fixture for filter and spec tests
+; Covers: salary income, housing and food expenses, date range spanning 64 days,
+;         and one elided posting (income:salary in the final transaction).
+
+2024-01-01 Opening balance
+    assets:bank:checking      £5,000.00
+    equity:opening-balances  -£5,000.00
+
+2024-01-15 * Salary
+    assets:bank:checking      £3,000.00
+    income:salary            -£3,000.00
+
+2024-02-01 Rent
+    expenses:housing:rent     £1,200.00
+    assets:bank:checking     -£1,200.00
+
+2024-02-10 Supermarket
+    expenses:food:groceries     £150.00
+    assets:bank:checking       -£150.00
+
+2024-02-20 Coffee
+    expenses:food:coffee         £9.00
+    assets:bank:checking        -£9.00
+
+2024-03-05 * Salary
+    assets:bank:checking      £3,000.00
+    income:salary

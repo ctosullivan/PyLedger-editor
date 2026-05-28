@@ -735,19 +735,32 @@ def _parse_string_impl(
 
         # --- Comment-only line (whole-line or indented follow-on `;` / `#`) ---
         #
-        # lstrip() is applied before the startswith test so that both
-        # whole-line comments ("# note") and indented follow-on comment lines
-        # ("    ; posting note") are caught here, before the posting-line
-        # branch below.
+        # Two distinct sub-cases share this branch:
         #
-        # When inside an open transaction block, `;`-led comment lines are
-        # included in the span (for raw_text) and their text is attached to
-        # the preceding posting's inline_comment (or to the transaction's
-        # inline_comment if no posting has been seen yet in this block).
-        # `#`-led comment lines update the span but do not attach their text.
+        # 1. Column-0 (non-indented) `#` or `;` — a standalone top-level comment.
+        #    These are ALWAYS silently skipped regardless of whether a transaction
+        #    block is open.  They never contribute to a transaction's comment fields
+        #    and never extend its source_span.
+        #
+        # 2. Indented (leading whitespace) `#` or `;` inside an open transaction —
+        #    a follow-on comment line.  `;`-led lines are attached to the preceding
+        #    posting's inline_comment (or to the transaction's inline_comment if no
+        #    posting has been seen yet in this block). `#`-led lines update the span
+        #    but do not attach their text.
+        #
+        # The `is_indented` flag disambiguates the two sub-cases; `lstrip()` is
+        # applied only for the startswith test, not for the indentation check.
+        #
+        # Edge cases:
+        #   - A column-0 `;` with no blank line between two transactions is a
+        #     top-level comment; it must NOT be captured as a follow-on comment
+        #     on the previous transaction's last posting.
+        #   - An empty `;` (nothing after the semicolon) sets inline_comment to
+        #     None, not to the empty string.
+        is_indented = line[0:1].isspace()
         stripped = line.lstrip()
         if stripped.startswith(";") or stripped.startswith("#"):
-            if current_txn is not None:
+            if current_txn is not None and is_indented:
                 current_txn_last_lineno = lineno
                 if stripped.startswith(";"):
                     comment_text = stripped[1:].strip()

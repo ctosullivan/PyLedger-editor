@@ -1,0 +1,22 @@
+; Multi-commodity test fixture.
+; Transactions span GBP (£), USD ($), and EUR (€).
+; The opening balances transaction uses one elided posting with multiple
+; commodities — the key case fixed by resolve_elision().
+
+2024-01-01 Opening balances
+    assets:bank:gbp          £10,000.00
+    assets:bank:usd            $5,000.00
+    assets:gold                 €2,000.00
+    equity:opening-balances
+
+2024-02-01 GBP expense
+    expenses:rent              £1,200.00
+    assets:bank:gbp           -£1,200.00
+
+2024-03-01 USD purchase
+    expenses:software            $99.00
+    assets:bank:usd              -$99.00
+
+2024-04-01 EUR transfer
+    expenses:conference         €500.00
+    assets:gold                 -€500.00

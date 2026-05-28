@@ -1,0 +1,3 @@
+; circular_b.journal — creates a circular include with circular_a.journal
+
+include circular_a.journal

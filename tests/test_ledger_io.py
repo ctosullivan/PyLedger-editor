@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from ledger_editor.utils.ledger_io import align_posting_amounts, load_journal
+from ledger_editor.utils.ledger_io import (
+    align_posting_amounts,
+    load_journal,
+    split_journal_segments,
+    split_preamble,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -146,3 +151,155 @@ class TestAlignPostingAmounts:
         col = self._amount_end_col(amount_part)
         assert col == 52
         assert "; a note" in posting_line
+
+
+class TestSplitPreamble:
+    """Tests for split_preamble()."""
+
+    def test_preamble_and_transactions(self) -> None:
+        text = (
+            "P 2024-01-01 USD EUR 0.92\n"
+            "account assets:bank\n"
+            "\n"
+            "2024-01-15 Groceries\n"
+            "    expenses:food  £10\n"
+            "    assets:bank   -£10\n"
+        )
+        preamble, body = split_preamble(text)
+        assert preamble == "P 2024-01-01 USD EUR 0.92\naccount assets:bank\n\n"
+        assert body.startswith("2024-01-15")
+
+    def test_empty_preamble_when_transaction_first(self) -> None:
+        text = "2024-01-01 Payment\n    expenses:food  £5\n    assets:bank  -£5\n"
+        preamble, body = split_preamble(text)
+        assert preamble == ""
+        assert body == text
+
+    def test_no_transactions_returns_full_text_as_preamble(self) -> None:
+        text = "P 2024-01-01 USD EUR 0.92\n; just a comment\n"
+        preamble, body = split_preamble(text)
+        assert preamble == text
+        assert body == ""
+
+    def test_empty_string(self) -> None:
+        preamble, body = split_preamble("")
+        assert preamble == ""
+        assert body == ""
+
+    def test_preamble_preserved_through_split_rejoin(self) -> None:
+        text = (
+            "; file header\n"
+            "P 2024-01-01 EUR USD 1.08\n"
+            "\n"
+            "2024-03-01 Later\n"
+            "    expenses:misc  $5\n"
+            "    assets:bank   -$5\n"
+            "\n"
+            "2024-01-10 Earlier\n"
+            "    expenses:food  $10\n"
+            "    assets:bank   -$10\n"
+        )
+        preamble, body = split_preamble(text)
+        rejoined = preamble + body
+        assert rejoined == text
+
+
+class TestSplitJournalSegments:
+    """Tests for split_journal_segments()."""
+
+    # Helper: build a minimal Transaction-like object with a source_span.
+    @staticmethod
+    def _txn(start_line: int, end_line: int) -> object:
+        """Return a duck-typed stand-in for Transaction with a SourceSpan."""
+        import datetime
+
+        class _Span:
+            def __init__(self, s: int, e: int) -> None:
+                self.start_line = s
+                self.end_line = e
+
+        class _Txn:
+            def __init__(self, s: int, e: int) -> None:
+                self.source_span = _Span(s, e)
+                self.date = datetime.date(2024, 1, 1)
+
+        return _Txn(start_line, end_line)
+
+    def test_no_transactions_returns_whole_text_as_single_block(self) -> None:
+        text = "P 2024-01-01 USD EUR 0.92\n; comment\n"
+        non_txn, txn = split_journal_segments(text, [])
+        assert non_txn == [text]
+        assert txn == []
+
+    def test_preamble_and_single_transaction(self) -> None:
+        text = "P 2024-01-01 USD EUR 0.92\n\n2024-01-15 Pay\n    exp  £5\n    bank -£5\n"
+        # Preamble = lines 1-2 (1-based). Transaction header on line 3, postings 4-5.
+        txns = [self._txn(3, 5)]
+        non_txn, txn_blocks = split_journal_segments(text, txns)
+        assert len(non_txn) == 2
+        assert len(txn_blocks) == 1
+        assert non_txn[0] == "P 2024-01-01 USD EUR 0.92\n\n"
+        assert txn_blocks[0].startswith("2024-01-15")
+        assert non_txn[1] == ""  # no trailing content
+
+    def test_interleaved_directive_becomes_inter_txn_block(self) -> None:
+        text = (
+            "2024-01-15 First\n"         # line 1
+            "    exp  £5\n"              # line 2
+            "    bank -£5\n"             # line 3
+            "\n"                         # line 4 (blank separator)
+            "P 2024-02-01 USD EUR 0.95\n"  # line 5 (directive between transactions)
+            "\n"                         # line 6
+            "2024-02-15 Second\n"        # line 7
+            "    exp  £10\n"             # line 8
+            "    bank -£10\n"            # line 9
+        )
+        txns = [self._txn(1, 3), self._txn(7, 9)]
+        non_txn, txn_blocks = split_journal_segments(text, txns)
+        assert len(non_txn) == 3
+        assert len(txn_blocks) == 2
+        assert non_txn[0] == ""                          # empty preamble
+        assert "P 2024-02-01" in non_txn[1]             # directive preserved in inter-block
+        assert non_txn[2] == ""                          # empty trailing
+        assert txn_blocks[0].startswith("2024-01-15")
+        assert txn_blocks[1].startswith("2024-02-15")
+
+    def test_roundtrip_reassembly_equals_original(self) -> None:
+        text = (
+            "P 2024-01-01 USD EUR 0.92\n"
+            "\n"
+            "2024-01-15 First\n"
+            "    exp  £5\n"
+            "    bank -£5\n"
+            "\n"
+            "P 2024-02-01 USD EUR 0.95\n"
+            "\n"
+            "2024-02-15 Second\n"
+            "    exp  £10\n"
+            "    bank -£10\n"
+        )
+        txns = [self._txn(3, 5), self._txn(9, 11)]
+        non_txn, txn_blocks = split_journal_segments(text, txns)
+        # Reassemble: non_txn[0] + txn[0] + non_txn[1] + txn[1] + non_txn[2]
+        reassembled = non_txn[0]
+        for i, block in enumerate(txn_blocks):
+            reassembled += block + non_txn[i + 1]
+        assert reassembled == text
+
+    def test_fallback_when_source_span_none(self) -> None:
+        text = (
+            "P 2024-01-01 USD EUR 0.92\n"
+            "\n"
+            "2024-01-15 First\n"
+            "    exp  £5\n"
+            "    bank -£5\n"
+        )
+
+        class _NoSpanTxn:
+            source_span = None
+
+        non_txn, txn_blocks = split_journal_segments(text, [_NoSpanTxn()])
+        # Fallback: preamble preserved, inter/trailing blocks empty
+        assert non_txn[0] == "P 2024-01-01 USD EUR 0.92\n\n"
+        assert all(b == "" for b in non_txn[1:])
+        assert all(b == "" for b in txn_blocks)

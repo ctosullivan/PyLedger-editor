@@ -1,0 +1,3 @@
+; root_with_glob.journal — root file that uses a glob include pattern
+
+include glob_*.journal

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PyLedger"
-version = "0.5.0"
+version = "0.5.1"
 description = "A Python implementation of the hledger plain-text accounting tool"
 requires-python = ">=3.10"
 dependencies = []

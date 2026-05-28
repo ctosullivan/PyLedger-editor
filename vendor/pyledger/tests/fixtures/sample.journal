@@ -1,0 +1,23 @@
+; sample.journal — minimal hledger journal for tests
+; Covers: income, expense, and account transfer transactions
+
+2024-01-01 Opening balance
+    assets:bank:checking       £2,000.00
+    equity:opening-balances   -£2,000.00
+
+2024-01-05 * Salary
+    assets:bank:checking       £3,500.00
+    income:salary             -£3,500.00
+
+2024-01-10 Supermarket
+    expenses:food:groceries      £85.40
+    assets:bank:checking        -£85.40
+
+2024-01-15 ! Transfer to savings
+    assets:bank:savings        £500.00
+    assets:bank:checking      -£500.00
+
+2024-01-20 Coffee shop  ; business meeting
+    expenses:food:coffee         £4.50
+    expenses:food:coffee         £4.50
+    assets:bank:checking        -£9.00

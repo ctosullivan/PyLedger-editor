@@ -1,0 +1,5 @@
+; glob_1.journal — first glob target fixture
+
+2024-05-01 Glob one transaction
+    expenses:food:coffee       £5.00
+    assets:bank:checking      -£5.00

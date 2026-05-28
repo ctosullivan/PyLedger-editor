@@ -1,0 +1,11 @@
+; strict_missing_accounts.journal — commodity declared but no account directives
+; Used to verify that -s/--strict fails on the accounts check.
+commodity £
+
+2024-01-01 * Employer
+    assets:bank:checking       £3,500.00
+    income:salary             -£3,500.00
+
+2024-01-10 Supermarket
+    expenses:food:groceries      £85.40
+    assets:bank:checking        -£85.40

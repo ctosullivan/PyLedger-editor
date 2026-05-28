@@ -1,0 +1,7 @@
+; root_with_include.journal — root file that includes included.journal
+
+include included.journal
+
+2024-01-01 Root transaction
+    assets:bank:checking       £50.00
+    equity:opening-balances   -£50.00

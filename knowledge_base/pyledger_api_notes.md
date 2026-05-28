@@ -1,10 +1,20 @@
 # PyLedger API Notes
 
 Authoritative reference: `vendor/pyledger/dev-docs/api-spec.md`
-Source models: `vendor/pyledger/pyLedger/models.py`
+Source models: `vendor/pyledger/PyLedger/models.py`
 
-Installed version: **0.5.0** (pip name: `pyledger==0.5`, Python import: `import PyLedger`)
-Package directory in repo: `pyLedger/` (note lowercase 'py') — imported as `PyLedger`.
+Installed version: **0.5.1** (pip name: `pyledger==0.5.1`, Python import: `import PyLedger`)
+Package directory in repo: `PyLedger/` — imported as `PyLedger`.
+
+### v0.5.1 changes (2026-05-28)
+
+- **Bug fix**: Column-0 `;`/`#` comment lines inside an open transaction block were
+  previously swallowed into the transaction (parser used `lstrip()` before the
+  `startswith` check, collapsing indentation info). Now `is_indented = line[0:1].isspace()`
+  is checked first; column-0 comment lines are always discarded at the top-level and
+  never captured into `source_span` or `raw_text`. No public API changes.
+- **Note for editor**: `journal_to_text()` still does not emit standalone comments or
+  directives. The preamble-preservation fix in `ledger_io.split_preamble()` handles this.
 
 ---
 
@@ -43,7 +53,7 @@ Other discrepancies:
 | `PyLedger.CheckError` | dataclass | Validation error with check_name + message |
 | `PyLedger.SourceSpan` | dataclass | Source line range for a parsed transaction |
 | `PyLedger.balance_from_spec(journal, spec, query)` | `list[ReportSectionResult]` | Structured balance |
-| `PyLedger.__version__` | `str` | `"0.5.0"` |
+| `PyLedger.__version__` | `str` | `"0.5.1"` |
 
 ---
 
