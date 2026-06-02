@@ -13,6 +13,11 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Shift+Up/Down should shift the date sub-field (year, month, or day) under the cursor on transaction header lines, overriding the default text-selection behaviour.
+- Claude: Added `_date_subfield_at_col` and `_shift_date_str` pure helpers to `transaction_table.py`; added `action_date_shift_up`, `action_date_shift_down`, and `_shift_date_by` to `JournalEditor`; wired `shift+up` / `shift+down` bindings with `priority=True` (falls back to selection when cursor is not on a date field); stdlib-only arithmetic via `calendar` + `datetime`; updated `emacs_ledger.py` stubs and `docs/shortcuts.md`; added 20 unit tests in `tests/test_date_shift.py`.
+
+---
+
 - Human: Directives and account aliases are lost when cycling through the reconcile view filter (Ctrl+L); comments must also be preserved.
 - Claude: Added `_filter_non_txn_blocks: list[str]` to `JournalEditor`. When entering a filtered view, `action_cycle_view_filter()` now calls `split_journal_segments()` to snapshot the non-transaction content (P directives, account/commodity/payee declarations, standalone comments, blank-line separators) alongside `_filter_journal`. `_apply_view_filter()` mode-0 restore path uses these blocks to weave directives back between sorted transaction texts instead of calling the directive-stripping `journal_to_text()`. Falls back to preamble-only or `journal_to_text` if transaction count changed in filtered view. Save from filtered view (Ctrl+S) inherits the fix automatically. Added 4 tests in `TestViewFilterDirectivePreservation`.
 

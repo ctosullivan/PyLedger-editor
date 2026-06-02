@@ -63,11 +63,11 @@ class TestEmacsBindingsExist:
     def test_autocomplete(self) -> None:
         self.obj.action_autocomplete()
 
-    def test_date_increment_day(self) -> None:
-        self.obj.action_date_increment_day()
+    def test_date_shift_up(self) -> None:
+        self.obj.action_date_shift_up()
 
-    def test_date_decrement_day(self) -> None:
-        self.obj.action_date_decrement_day()
+    def test_date_shift_down(self) -> None:
+        self.obj.action_date_shift_down()
 
     def test_date_increment_month(self) -> None:
         self.obj.action_date_increment_month()

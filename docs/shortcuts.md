@@ -88,10 +88,10 @@ natively — arrow keys, `Home`/`End`, `Ctrl+←/→` (word jump), `PgUp`/`PgDn`
 
 | Shortcut | Action |
 |----------|--------|
-| `Shift+Up` | Increment date by one day |
-| `Shift+Down` | Decrement date by one day |
-| `Shift+Alt+Up` | Increment date by one month |
-| `Shift+Alt+Down` | Decrement date by one month |
+| `Shift+Up` | Increment the date component under the cursor (year, month, or day). Falls back to text selection when cursor is not on a date field. |
+| `Shift+Down` | Decrement the date component under the cursor (year, month, or day). Falls back to text selection when cursor is not on a date field. |
+| `Shift+Alt+Up` | Increment date by one month *(reserved — not yet implemented)* |
+| `Shift+Alt+Down` | Decrement date by one month *(reserved — not yet implemented)* |
 | `Alt+P` | Insert previous matching transaction template (Emacs `M-p`) |
 | `Alt+N` | Insert next matching transaction template (Emacs `M-n`) |
 | `Ctrl+K` | Kill (delete) to end of line |

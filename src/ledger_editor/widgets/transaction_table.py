@@ -8,7 +8,10 @@ is implemented in ViewFilterBar (view_filter_bar.py).
 
 from __future__ import annotations
 
+import calendar
 import re
+from datetime import date as _date
+from datetime import timedelta
 from pathlib import Path
 
 from textual.app import ComposeResult
@@ -118,6 +121,63 @@ def _find_transaction_block(lines: list[str], row: int) -> tuple[int, int]:
     return (start, end)
 
 
+def _date_subfield_at_col(col: int) -> str | None:
+    """Return 'year', 'month', or 'day' for a cursor column within a 10-char date.
+
+    A date like 2024-01-15 occupies columns 0–9. Separators (col 4, col 7) are
+    assigned to the field on their right: col 4 → month, col 7 → day.
+    Returns None when col is outside the date (col >= 10).
+    """
+    if col < 4:
+        return "year"
+    if col < 7:
+        return "month"
+    if col < 10:
+        return "day"
+    return None
+
+
+# Purpose: parse a 10-character hledger date string of the form YYYY<sep>MM<sep>DD,
+#   where <sep> is any of '-', '/', or '.', into year/month/day integers.
+# Group breakdown:
+#   group 1 — four-digit year (chars 0–3)
+#   char  4 — separator (captured directly via date_str[4])
+#   group 2 — two-digit month (chars 5–6)
+#   group 3 — two-digit day (chars 8–9)
+# Edge cases: the caller guarantees date_str matches _TXN_HEADER_RE group 1, so
+#   the format is always exactly 10 chars; no need to handle missing leading zeros.
+_DATE_PARSE_RE = re.compile(r"^(\d{4}).(\d{2}).(\d{2})$")
+
+
+def _shift_date_str(date_str: str, subfield: str, delta: int) -> str:
+    """Return date_str with the given sub-field shifted by delta, separator preserved.
+
+    Month-end overflow is clamped: Jan 31 + 1 month → Feb 28/29. Year shift
+    clamps Feb 29 on a leap year to Feb 28 on a non-leap year.
+    """
+    m = _DATE_PARSE_RE.match(date_str)
+    if not m:
+        return date_str
+    sep = date_str[4]
+    y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+
+    if subfield == "day":
+        new = _date(y, mo, d) + timedelta(days=delta)
+        return f"{new.year:04d}{sep}{new.month:02d}{sep}{new.day:02d}"
+
+    if subfield == "month":
+        total = (y * 12 + mo - 1) + delta
+        new_y, new_m0 = divmod(total, 12)
+        new_mo = new_m0 + 1
+        max_d = calendar.monthrange(new_y, new_mo)[1]
+        return f"{new_y:04d}{sep}{new_mo:02d}{sep}{min(d, max_d):02d}"
+
+    # subfield == "year"
+    new_y = y + delta
+    max_d = calendar.monthrange(new_y, mo)[1]
+    return f"{new_y:04d}{sep}{mo:02d}{sep}{min(d, max_d):02d}"
+
+
 class JournalEditor(Widget):
     """Full-text editor for hledger journal files.
 
@@ -161,6 +221,10 @@ class JournalEditor(Widget):
         # consult CommandHistory first, then fall through to textarea.action_undo/redo.
         Binding("ctrl+z", "undo", "Undo", show=False, priority=True),
         Binding("ctrl+y", "redo", "Redo", show=False, priority=True),
+        # Date shifting — intercept Shift+Up/Down before TextArea's selection handler.
+        # Falls through to selection when cursor is not on a date field.
+        Binding("shift+up", "date_shift_up", "Date up", show=False, priority=True),
+        Binding("shift+down", "date_shift_down", "Date down", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -697,6 +761,45 @@ class JournalEditor(Widget):
 
     def action_insert_today(self) -> None:
         """Insert today's date at the cursor position (Ctrl+D)."""
-        from datetime import date as _date  # noqa: PLC0415
-
         self.query_one("#journal_textarea", TextArea).insert(_date.today().isoformat() + " ")
+
+    def action_date_shift_up(self) -> None:
+        """Shift the date sub-field under the cursor up by 1 (Shift+Up)."""
+        self._shift_date_by(+1)
+
+    def action_date_shift_down(self) -> None:
+        """Shift the date sub-field under the cursor down by 1 (Shift+Down)."""
+        self._shift_date_by(-1)
+
+    def _shift_date_by(self, delta: int) -> None:
+        """Shift the date sub-field under the cursor, or fall through to selection."""
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+        row, col = textarea.cursor_location
+        line_infos = textarea._highlighter._line_infos
+
+        def _fallthrough() -> None:
+            if delta > 0:
+                textarea.action_cursor_up(select=True)
+            else:
+                textarea.action_cursor_down(select=True)
+
+        if row >= len(line_infos) or line_infos[row].kind != LineKind.XACT_HEADER:
+            _fallthrough()
+            return
+
+        lines = textarea.text.splitlines()
+        line = lines[row] if row < len(lines) else ""
+        m = _TXN_HEADER_RE.match(line)
+        if not m:
+            _fallthrough()
+            return
+
+        subfield = _date_subfield_at_col(col)
+        if subfield is None:
+            _fallthrough()
+            return
+
+        date_str = m.group(1)
+        new_date_str = _shift_date_str(date_str, subfield, delta)
+        textarea.replace(new_date_str, (row, 0), (row, len(date_str)))
+        textarea.move_cursor((row, col), select=False)

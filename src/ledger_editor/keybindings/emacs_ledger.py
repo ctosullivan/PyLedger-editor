@@ -5,8 +5,8 @@ via Textual's BINDINGS list and action_* handler methods.
 
 Shortcut reference (full table in docs/shortcuts.md):
   Tab                     Autocomplete account name / payee from known entries
-  Shift+Up / Shift+Down   Increment / decrement date by one day
-  Shift+Alt+Up / Down     Increment / decrement date by one month
+  Shift+Up / Shift+Down   Shift the date sub-field under the cursor (year/month/day)
+  Shift+Alt+Up / Down     Increment / decrement date by one month (reserved)
   Ctrl+Right / Left       Skip to next / previous field (date→payee→account→amount)
   Ctrl+Up / Down          Move to next / previous transaction block
   Ctrl+Shift+Right/Left   Select to end / start of current field
@@ -37,13 +37,21 @@ class EmacsLedgerBindings:
         """
         # TODO: implement Tab autocomplete
 
-    def action_date_increment_day(self) -> None:
-        """Increment the date field of the current transaction by one day (Shift+Up)."""
-        # TODO: implement
+    def action_date_shift_up(self) -> None:
+        """Shift up the date sub-field under the cursor (Shift+Up).
 
-    def action_date_decrement_day(self) -> None:
-        """Decrement the date field of the current transaction by one day (Shift+Down)."""
-        # TODO: implement
+        Increments the year, month, or day — whichever the cursor column is over.
+        Implemented directly in JournalEditor; this stub documents the intent.
+        """
+        # Implemented in JournalEditor._shift_date_by(+1)
+
+    def action_date_shift_down(self) -> None:
+        """Shift down the date sub-field under the cursor (Shift+Down).
+
+        Decrements the year, month, or day — whichever the cursor column is over.
+        Implemented directly in JournalEditor; this stub documents the intent.
+        """
+        # Implemented in JournalEditor._shift_date_by(-1)
 
     def action_date_increment_month(self) -> None:
         """Increment the date field by one month (Shift+Alt+Up)."""
