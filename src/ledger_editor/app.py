@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from typing import ClassVar
@@ -23,7 +24,7 @@ from textual.binding import Binding
 from textual.css.query import NoMatches
 from textual.widgets import Footer, Header, Static
 
-from ledger_editor.themes import register_all
+from ledger_editor.themes import VALID_THEMES, register_all
 from ledger_editor.themes.monokai_pro import THEME_NAME
 from ledger_editor.utils.file_resolver import resolve_journal_file
 from ledger_editor.widgets.filter_popup import FilterPopup
@@ -94,10 +95,23 @@ class LedgerApp(App[None]):
     }
     """
 
-    def __init__(self, journal_path: Path) -> None:
-        """Initialise the app with a resolved journal file path."""
+    def __init__(
+        self,
+        journal_path: Path,
+        start_line: int | None = None,
+        theme_name: str | None = None,
+    ) -> None:
+        """Initialise the app with a resolved journal file path.
+
+        Args:
+            journal_path: Resolved path to the .journal or .ledger file.
+            start_line: 1-indexed line to place the cursor on after open.
+            theme_name: Registered theme name to activate; defaults to monokai-pro.
+        """
         super().__init__()
         self.journal_path = journal_path
+        self._start_line = start_line
+        self._theme_name = theme_name
 
     def on_mount(self) -> None:
         """Register bundled themes, activate Monokai Pro, and populate file-path bar."""
@@ -107,14 +121,14 @@ class LedgerApp(App[None]):
         ledger_textarea = editor.query_one("#journal_textarea", LedgerTextArea)
         register_all(self, ledger_textarea)
         if os.environ.get("TEXTUAL_THEME") is None:
-            self.theme = THEME_NAME
+            self.theme = self._theme_name or THEME_NAME
         self._update_file_path_bar(modified=False)
 
     def compose(self) -> ComposeResult:
         """Build the initial widget tree."""
         yield Header()
         yield Static("", id="file-path-bar")
-        yield JournalEditor(self.journal_path)
+        yield JournalEditor(self.journal_path, start_line=self._start_line)
         yield Footer()
 
     def _update_file_path_bar(self, modified: bool) -> None:
@@ -147,6 +161,25 @@ class LedgerApp(App[None]):
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the ledger-editor entry point."""
+    raw = list(sys.argv[1:] if argv is None else argv)
+
+    # Extract +N tokens before argparse; it does not handle the bare + prefix.
+    # +N is the traditional $EDITOR convention (vi, emacs) used by shell
+    # scripts and tools that invoke editors via: $EDITOR +N file.
+    #
+    # Purpose: match a bare "+<digits>" token anywhere in argv.
+    # Group 1: the decimal line number.
+    # Edge cases: "+0" matches (clamped to row 0 at use-site); "+N file"
+    #             adjacent to a filename leaves the filename intact.
+    plus_line: int | None = None
+    filtered: list[str] = []
+    for token in raw:
+        m = re.fullmatch(r"\+(\d+)", token)
+        if m:
+            plus_line = int(m.group(1))
+        else:
+            filtered.append(token)
+
     parser = argparse.ArgumentParser(
         prog="ledger-editor",
         description="Terminal-based plain-text ledger editor (hledger format).",
@@ -157,7 +190,25 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="FILE",
         help="Path to the .journal or .ledger file to edit.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--line",
+        type=int,
+        metavar="N",
+        default=None,
+        help="Open with cursor at line N (1-indexed). Also accepts +N positional form.",
+    )
+    parser.add_argument(
+        "--theme",
+        metavar="THEME",
+        default=None,
+        choices=sorted(VALID_THEMES),
+        help="Color theme to activate at startup (default: monokai-pro).",
+    )
+    args = parser.parse_args(filtered)
+    # --line takes precedence; +N is the fallback when --line is absent.
+    if args.line is None and plus_line is not None:
+        args.line = plus_line
+    return args
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -171,5 +222,5 @@ def main(argv: list[str] | None = None) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
-    app = LedgerApp(journal_path)
+    app = LedgerApp(journal_path, start_line=args.line, theme_name=args.theme)
     app.run()

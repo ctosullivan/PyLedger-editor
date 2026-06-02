@@ -13,6 +13,9 @@ Format per entry:
 
 ## [Unreleased]
 
+- Human: Add `--line=N` (and `+N` vi/emacs convention) and `--theme=THEME` CLI arguments so pyledger-ui can open the editor at the correct transaction line and with a matching color theme.
+- Claude: Added `VALID_THEMES` frozenset to `themes/__init__.py` (derived from `textual.theme.BUILTIN_THEMES` plus bundled themes at import time). Extended `_parse_args` in `app.py` with `--line` and `--theme` flags; pre-processes argv to extract bare `+N` tokens before argparse sees them (`--line` wins on conflict). Extended `LedgerApp.__init__` with `start_line` and `theme_name` kwargs; `on_mount` now resolves theme as `self._theme_name or THEME_NAME`. Extended `JournalEditor.__init__` with `start_line`; `on_mount` calls `textarea.move_cursor((row, 0))` after `load_text` when `start_line` is set, clamping to valid range. Added 13 tests in `tests/test_parse_args.py`.
+
 - Human: Shift+Up/Down should shift the date sub-field (year, month, or day) under the cursor on transaction header lines, overriding the default text-selection behaviour.
 - Claude: Added `_date_subfield_at_col` and `_shift_date_str` pure helpers to `transaction_table.py`; added `action_date_shift_up`, `action_date_shift_down`, and `_shift_date_by` to `JournalEditor`; wired `shift+up` / `shift+down` bindings with `priority=True` (falls back to selection when cursor is not on a date field); stdlib-only arithmetic via `calendar` + `datetime`; updated `emacs_ledger.py` stubs and `docs/shortcuts.md`; added 20 unit tests in `tests/test_date_shift.py`.
 

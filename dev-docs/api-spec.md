@@ -178,6 +178,21 @@ class CommandHistory:
 
 ---
 
+## `ledger_editor.themes`
+
+### `VALID_THEMES`
+
+```python
+VALID_THEMES: frozenset[str]
+```
+
+Frozenset of every accepted `--theme` value: all Textual built-in theme names
+(from `textual.theme.BUILTIN_THEMES`) plus each project-bundled theme name.
+Computed at import time so new Textual releases and new bundled entries are
+included automatically.
+
+---
+
 ## `ledger_editor.app`
 
 ### `LedgerApp`
@@ -186,9 +201,17 @@ class CommandHistory:
 class LedgerApp(App[None]):
     """Root Textual application. Constructed with a resolved journal Path."""
 
-    def __init__(self, journal_path: Path) -> None: ...
+    def __init__(
+        self,
+        journal_path: Path,
+        start_line: int | None = None,
+        theme_name: str | None = None,
+    ) -> None: ...
     def action_toggle_filter(self) -> None: ...
 ```
+
+`start_line`: 1-indexed line to place the cursor on after the file loads.
+`theme_name`: Registered theme name; defaults to `monokai-pro` when `None`.
 
 ### `main`
 
@@ -211,7 +234,7 @@ class BalanceSidebar(Widget):
 
 ```python
 class JournalEditor(Widget):
-    def __init__(self, journal_path: Path) -> None: ...
+    def __init__(self, journal_path: Path, start_line: int | None = None) -> None: ...
     def action_toggle_cleared(self) -> None: ...
     def action_save(self) -> None: ...
     def action_autofill(self) -> None: ...

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import calendar
 import re
+import time as _time
 from datetime import date as _date
 from datetime import timedelta
 from pathlib import Path
@@ -258,15 +259,18 @@ class JournalEditor(Widget):
     # Initialisation
     # ------------------------------------------------------------------
 
-    def __init__(self, journal_path: Path) -> None:
+    def __init__(self, journal_path: Path, start_line: int | None = None) -> None:
         """Initialise with the resolved absolute journal file path.
 
         Args:
             journal_path: Absolute path to the .journal or .ledger file to edit.
+            start_line: 1-indexed line to place the cursor on after the file loads.
         """
         from ledger_editor.commands import CommandHistory  # noqa: PLC0415
         super().__init__()
         self.journal_path = journal_path
+        self._start_line = start_line
+        self._seek_window_end: float = 0.0  # monotonic deadline for resize-triggered re-seek
         self._current_account: str | None = None
         self._last_saved_text: str = ""
         self._command_history: CommandHistory = CommandHistory()
@@ -296,6 +300,35 @@ class JournalEditor(Widget):
         textarea.load_text(text)
         self._last_saved_text = text
         textarea.focus()
+        # Defer the cursor seek: move_cursor here would set the document
+        # position correctly but scroll_cursor_visible is a no-op before the
+        # first layout pass (widget size is 0). call_after_refresh ensures the
+        # layout has run before we try to scroll the viewport.
+        if self._start_line is not None:
+            # Open a 3-second window so on_resize can re-seek if a Windows
+            # console resize event (from hledger-ui handoff) fires after the
+            # initial call_after_refresh and resets the scroll position.
+            self._seek_window_end = _time.monotonic() + 3.0
+            self.call_after_refresh(self._seek_to_start_line)
+
+    def _seek_to_start_line(self) -> None:
+        """Move cursor and scroll viewport to the requested start line."""
+        textarea = self.query_one("#journal_textarea", TextArea)
+        lines = textarea.text.splitlines()
+        row = min(max(0, self._start_line - 1), max(0, len(lines) - 1))  # type: ignore[operator]
+        textarea.move_cursor((row, 0))
+
+    def on_resize(self, event: object) -> None:
+        """Re-seek on resize within the startup window.
+
+        When pyledger-editor is spawned by hledger-ui, Windows emits a console
+        resize event as control of the terminal is handed over. That resize can
+        reset the TextArea scroll position after the initial call_after_refresh
+        seek. Re-scheduling the seek here (only while inside the startup window)
+        restores the correct position after the resize re-render completes.
+        """
+        if self._start_line is not None and _time.monotonic() < self._seek_window_end:
+            self.call_after_refresh(self._seek_to_start_line)
 
     # ------------------------------------------------------------------
     # Cursor tracking
