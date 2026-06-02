@@ -1,7 +1,7 @@
-WARNING: Ignoring invalid distribution ~ip (c:\Users\user\Dropbox\Dev\Python\PyLedger-editor\.venv\Lib\site-packages)
 colorama==0.4.6
 iniconfig==2.3.0
--e git+https://github.com/ctosullivan/PyLedger-editor.git@29b96e11ed7cbe1ddc7b679a9026b1b5ac6ddcba#egg=ledger_editor
+-e git+https://github.com/ctosullivan/PyLedger-editor.git@5da045de1a5fa896cbf65ce67ff4e7d247355a28#egg=ledger_editor
+-e git+https://github.com/ctosullivan/ledgerkit.git@67f8c7fc25c2de12e04566375b7f9632e9ab040c#egg=ledgerkit
 linkify-it-py==2.1.0
 markdown-it-py==4.2.0
 mdit-py-plugins==0.6.1
@@ -10,7 +10,6 @@ packaging==26.2
 platformdirs==4.9.6
 pluggy==1.6.0
 Pygments==2.20.0
--e git+https://github.com/ctosullivan/PyLedger-editor.git@29b96e11ed7cbe1ddc7b679a9026b1b5ac6ddcba#egg=PyLedger&subdirectory=vendor\pyledger
 pytest==9.0.3
 pytest-asyncio==1.3.0
 rich==15.0.0

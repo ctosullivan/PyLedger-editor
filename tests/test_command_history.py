@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ledger_editor.commands import Command, CommandHistory
+from ledgerkit_editor.commands import Command, CommandHistory
 
 
 def _make_cmd(log: list[str], name: str) -> Command:

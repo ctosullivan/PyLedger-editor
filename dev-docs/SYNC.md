@@ -1,7 +1,7 @@
 # Documentation Sync Contract
 
 This file defines what must be kept in sync when code changes.
-It mirrors the approach in `vendor/pyledger/dev-docs/SYNC.md`.
+It mirrors the approach in `vendor/ledgerkit/dev-docs/SYNC.md`.
 
 ---
 
@@ -15,7 +15,7 @@ It mirrors the approach in `vendor/pyledger/dev-docs/SYNC.md`.
 | Widget behaviour visible to users changes | `docs/shortcuts.md` + `dev-docs/architecture.md` |
 | Any substantive code or doc change | `CHANGELOG.md` (new entry in `[Unreleased]`) |
 | Milestone completed (on user instruction only) | `ROADMAP.md` |
-| PyLedger vendor updated | `knowledge_base/pyledger_api_notes.md` |
+| ledgerkit vendor updated | `knowledge_base/ledgerkit_api_notes.md` |
 | Terminal-emulator conflict discovered | `knowledge_base/design_decisions.md` |
 
 ## Rules

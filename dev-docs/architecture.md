@@ -3,7 +3,7 @@
 ## Module Responsibilities
 
 ```
-src/ledger_editor/
+src/ledgerkit_editor/
 ├── app.py                  — LedgerApp (Textual App root); composes layout,
 │                             wires message handlers (SaveCompleted,
 │                             CursorAccountChanged, AccountSelected)
@@ -11,7 +11,7 @@ src/ledger_editor/
 │   ├── transaction_table.py — JournalEditor: TextArea-based text editor;
 │   │                          loads raw journal text; posts CursorAccountChanged
 │   │                          on cursor move; Ctrl+S sorts+saves via journal_to_text
-│   ├── balance_sidebar.py  — BalanceSidebar: reads PyLedger balance(tree=True)
+│   ├── balance_sidebar.py  — BalanceSidebar: reads ledgerkit balance(tree=True)
 │   │                          asynchronously; Tree widget on the right panel;
 │   │                          posts AccountSelected on node click
 │   ├── register_panel.py   — RegisterPanel: DataTable showing the 10 most recent
@@ -25,7 +25,7 @@ src/ledger_editor/
 │                             and command palette provider stubs
 └── utils/
     ├── date_parser.py      — Smart date string → datetime.date
-    ├── ledger_io.py        — Thin wrappers over PyLedger.load() and EditorDocument;
+    ├── ledger_io.py        — Thin wrappers over ledgerkit.load() and EditorDocument;
     │                         align_posting_amounts() (column-52 amount formatting)
     ├── atomic_edit.py      — atomic_edit() context manager (collapses N replace()
     │                         calls into one undo entry via EditHistory._undo_stack)
@@ -66,22 +66,22 @@ JournalEditor (TextArea)
                 └── journal.register(query=Query(account=...))
                       → last 10 RegisterRow entries → DataTable
 
-        BalanceSidebar (separate PyLedger.load() on each refresh)
+        BalanceSidebar (separate ledgerkit.load() on each refresh)
                 │  journal.balance(tree=True) → Tree nodes
                 │
                 └── node click → AccountSelected →
                         RegisterPanel.show_account(account)
 ```
 
-## PyLedger Integration Points
+## ledgerkit Integration Points
 
-| Editor action | PyLedger API |
+| Editor action | ledgerkit API |
 |---|---|
-| Open file | `PyLedger.EditorDocument(path)` → `.lines` for raw text |
-| Balance sidebar | `PyLedger.load(path)` → `journal.balance(tree=True)` |
-| Validate / sort on save | `PyLedger.parse_string_lenient(text)` → `journal_to_text()` |
-| Post-save checks | `PyLedger.checks.run_basic_checks(journal)` |
-| Register panel | `journal.register(query=PyLedger.Query(account=...))` |
+| Open file | `ledgerkit.EditorDocument(path)` → `.lines` for raw text |
+| Balance sidebar | `ledgerkit.load(path)` → `journal.balance(tree=True)` |
+| Validate / sort on save | `ledgerkit.parse_string_lenient(text)` → `journal_to_text()` |
+| Post-save checks | `ledgerkit.checks.run_basic_checks(journal)` |
+| Register panel | `journal.register(query=ledgerkit.Query(account=...))` |
 
 ## Two-Layer Undo Stack
 
@@ -106,6 +106,6 @@ JournalEditor maintains two separate undo stacks:
 - Validation errors on save produce notifications but do **not** block the write.
 - Shift+C cycles 3 states: uncleared → pending → cleared → uncleared.
 - Amount column alignment (column 52) is a post-processing step in `action_save()`;
-  it does not modify PyLedger's `journal_to_text()` output in-place.
+  it does not modify ledgerkit's `journal_to_text()` output in-place.
 
 See `knowledge_base/design_decisions.md` for full rationale.

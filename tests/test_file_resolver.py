@@ -1,11 +1,11 @@
-"""Tests for ledger_editor.utils.file_resolver."""
+"""Tests for ledgerkit_editor.utils.file_resolver."""
 
 import os
 from pathlib import Path
 
 import pytest
 
-from ledger_editor.utils.file_resolver import resolve_journal_file
+from ledgerkit_editor.utils.file_resolver import resolve_journal_file
 
 
 class TestResolveJournalFile:

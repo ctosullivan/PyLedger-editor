@@ -1,0 +1,15 @@
+; Multi-commodity fixture for commodity_format tests.
+
+2024-01-01 * Opening balances
+    assets:bank:eur          1,500.00 EUR
+    assets:bank:gbp               £1,200.00
+    assets:cash:usd              $500.00
+    equity:opening-balances
+
+2024-01-15 Exchange
+    assets:bank:gbp             -£300.00
+    expenses:abroad           300.00 EUR
+
+2024-02-01 Salary
+    assets:bank:eur          2,000.00 EUR
+    income:salary

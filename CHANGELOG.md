@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Ledger Editor are documented here.
+All notable changes to LedgerKit Editor are documented here.
 
 Format per entry:
 
@@ -12,6 +12,9 @@ Format per entry:
 ---
 
 ## [Unreleased]
+
+- Human: Download latest version of vendor package (pyledger → ledgerkit), rename project to ledgerkit-editor (ledger_editor → ledgerkit_editor), and implement commodity formatting propagation on save.
+- Claude: Phase 1 — swapped vendor/pyledger for vendor/ledgerkit (v0.1.0 from github.com/ctosullivan/ledgerkit); updated all `import PyLedger` → `import ledgerkit` across src and all API call sites; updated pyproject.toml dependency, requirements.txt, CLAUDE.md, CONTRIBUTING.md, README.md, dev-docs/architecture.md, dev-docs/api-spec.md, dev-docs/SYNC.md, knowledge_base/ (new ledgerkit_api_notes.md), ROADMAP.md. Phase 2 — renamed src/ledger_editor → src/ledgerkit_editor; updated all 26 source+test files; updated pyproject.toml name/console-script to `ledgerkit-editor`; updated CLAUDE.md folder structure. Phase 3 — added `src/ledgerkit_editor/utils/commodity_format.py` with `extract_commodity_styles` (delegates to `Journal.commodity_styles`) and `apply_commodity_styles` (regex-based post-processor); wired into `JournalEditor.on_mount` (detect on load) and `action_save` (apply before column re-alignment); added `tests/fixtures/multicommodity.journal` and `tests/test_commodity_format.py` (33 tests); updated dev-docs/api-spec.md with commodity_format module section.
 
 - Human: Add `--line=N` (and `+N` vi/emacs convention) and `--theme=THEME` CLI arguments so pyledger-ui can open the editor at the correct transaction line and with a matching color theme.
 - Claude: Added `VALID_THEMES` frozenset to `themes/__init__.py` (derived from `textual.theme.BUILTIN_THEMES` plus bundled themes at import time). Extended `_parse_args` in `app.py` with `--line` and `--theme` flags; pre-processes argv to extract bare `+N` tokens before argparse sees them (`--line` wins on conflict). Extended `LedgerApp.__init__` with `start_line` and `theme_name` kwargs; `on_mount` now resolves theme as `self._theme_name or THEME_NAME`. Extended `JournalEditor.__init__` with `start_line`; `on_mount` calls `textarea.move_cursor((row, 0))` after `load_text` when `start_line` is set, clamping to valid range. Added 13 tests in `tests/test_parse_args.py`.

@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from ledger_editor.app import LedgerApp
-from ledger_editor.highlighting import tokens
-from ledger_editor.themes.monokai_pro import TEXTAREA_THEME_NAME, THEME_NAME
-from ledger_editor.widgets.ledger_textarea import LedgerTextArea
-from ledger_editor.widgets.transaction_table import JournalEditor
+from ledgerkit_editor.app import LedgerApp
+from ledgerkit_editor.highlighting import tokens
+from ledgerkit_editor.themes.monokai_pro import TEXTAREA_THEME_NAME, THEME_NAME
+from ledgerkit_editor.widgets.ledger_textarea import LedgerTextArea
+from ledgerkit_editor.widgets.transaction_table import JournalEditor
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

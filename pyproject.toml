@@ -3,18 +3,18 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ledger-editor"
+name = "ledgerkit-editor"
 version = "0.9.4"
 requires-python = ">=3.8"
 dependencies = [
     "textual==8.2.5",
-    # PyLedger is installed from vendor/pyledger/ in editable mode (pip install -e vendor/pyledger/).
-    # The PyPI 'pyledger' package is a stub only. See CONTRIBUTING.md for setup instructions.
-    "PyLedger==0.5.1",
+    # ledgerkit is installed from vendor/ledgerkit/ in editable mode (pip install -e vendor/ledgerkit/).
+    # Always use the vendor version. See CONTRIBUTING.md for setup instructions.
+    "ledgerkit==0.1.0",
 ]
 
 [project.scripts]
-ledger-editor = "ledger_editor.app:main"
+ledgerkit-editor = "ledgerkit_editor.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

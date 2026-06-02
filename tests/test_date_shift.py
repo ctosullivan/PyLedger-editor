@@ -5,7 +5,7 @@ Covers _date_subfield_at_col (column-to-subfield mapping) and _shift_date_str
 """
 import pytest
 
-from ledger_editor.widgets.transaction_table import (
+from ledgerkit_editor.widgets.transaction_table import (
     _date_subfield_at_col,
     _shift_date_str,
 )

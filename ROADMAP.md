@@ -74,7 +74,7 @@ These features are not planned to return unless explicitly requested.
 
 The `FilterPopup` is a UI stub. `apply_filter()` is unimplemented.
 
-- [ ] Assemble `PyLedger.Query` from date-from, date-to, account, payee fields
+- [ ] Assemble `ledgerkit.Query` from date-from, date-to, account, payee fields
 - [ ] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
 - [ ] Apply filter: show only matching transactions in the editor
 - [ ] Clear filter restores full journal
@@ -96,4 +96,4 @@ The `FilterPopup` is a UI stub. `apply_filter()` is unimplemented.
 - [ ] Large journal support (10 000+ transactions without UI lag)
 - [ ] Command palette: register all named actions
 - [ ] Configurable keybinding profiles (MS Office / Emacs Ledger-mode stubs are in
-  `src/ledger_editor/keybindings/`)
+  `src/ledgerkit_editor/keybindings/`)

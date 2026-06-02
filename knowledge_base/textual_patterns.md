@@ -75,8 +75,8 @@ class BalanceSidebar(Widget):
         await worker.wait()
 
     async def _load_balances(self) -> dict:
-        import PyLedger
-        return PyLedger.load(self.journal_path).balance(tree=True)
+        import ledgerkit
+        return ledgerkit.load(self.journal_path).balance(tree=True)
 ```
 
 Use `exclusive=True` to cancel any in-flight worker of the same type when a

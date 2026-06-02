@@ -1,10 +1,10 @@
-"""Tests for ledger_editor.utils.ledger_io."""
+"""Tests for ledgerkit_editor.utils.ledger_io."""
 
 from pathlib import Path
 
 import pytest
 
-from ledger_editor.utils.ledger_io import (
+from ledgerkit_editor.utils.ledger_io import (
     align_posting_amounts,
     load_journal,
     split_journal_segments,

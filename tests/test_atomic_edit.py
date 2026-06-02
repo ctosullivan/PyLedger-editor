@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ledger_editor.utils.atomic_edit import atomic_edit
+from ledgerkit_editor.utils.atomic_edit import atomic_edit
 
 
 def _mock_edit(text: str = "x") -> MagicMock:

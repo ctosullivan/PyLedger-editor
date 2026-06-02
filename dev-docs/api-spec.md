@@ -3,13 +3,13 @@
 > **PROTECTED FILE** — Do not modify without explicit user approval.
 > See CLAUDE.md §Unauthorised Change Rule.
 
-This file documents the internal APIs exposed by `ledger_editor` modules.
-It does NOT document PyLedger's own API — see
-`vendor/pyledger/dev-docs/api-spec.md` for that.
+This file documents the internal APIs exposed by `ledgerkit_editor` modules.
+It does NOT document ledgerkit's own API — see
+`vendor/ledgerkit/dev-docs/api-spec.md` for that.
 
 ---
 
-## `ledger_editor.utils.file_resolver`
+## `ledgerkit_editor.utils.file_resolver`
 
 ### `resolve_journal_file`
 
@@ -33,7 +33,7 @@ def resolve_journal_file(cli_path: str | None) -> Path | None:
 
 ---
 
-## `ledger_editor.utils.date_parser`
+## `ledgerkit_editor.utils.date_parser`
 
 ### `parse_date`
 
@@ -69,20 +69,60 @@ class DateParseError(ValueError): ...
 
 ---
 
-## `ledger_editor.utils.ledger_io`
+## `ledgerkit_editor.utils.commodity_format`
+
+### `extract_commodity_styles`
+
+```python
+def extract_commodity_styles(journal: Journal) -> dict[str, CommodityStyle]:
+    """Return commodity styles inferred from a parsed Journal.
+
+    Delegates to Journal.commodity_styles (ledgerkit v0.1.0+). Priority:
+      1. Explicit commodity directives.
+      2. First posting amount per commodity (uses Amount.raw).
+      3. First price-directive amount per commodity.
+
+    Returns an empty dict when the journal has no amounts with raw strings.
+    """
+```
+
+### `apply_commodity_styles`
+
+```python
+def apply_commodity_styles(
+    text: str,
+    styles: dict[str, CommodityStyle],
+) -> str:
+    """Post-process serialised journal text to apply detected commodity formats.
+
+    For each posting line, extracts the amount token, looks up its commodity
+    in styles, and replaces the token with CommodityStyle.format(quantity).
+    Lines whose commodity is absent from styles, and all non-posting lines,
+    are passed through unchanged.
+
+    Intended to run before align_posting_amounts() in the save pipeline so
+    reformatted amounts are then correctly column-aligned.
+
+    Returns text unchanged immediately when styles is empty.
+    """
+```
+
+---
+
+## `ledgerkit_editor.utils.ledger_io`
 
 ### `load_journal`
 
 ```python
 def load_journal(path: Path) -> Journal:
-    """Load via PyLedger.load(). Raises FileNotFoundError or ParseError."""
+    """Load via ledgerkit.load(). Raises FileNotFoundError or ParseError."""
 ```
 
 ### `save_journal`
 
 ```python
 def save_journal(path: Path, journal: Journal) -> None:
-    """Serialise via PyLedger.journal_to_text() and write to path."""
+    """Serialise via ledgerkit.journal_to_text() and write to path."""
 ```
 
 ### `align_posting_amounts`
@@ -133,7 +173,7 @@ def split_journal_segments(
 
 ---
 
-## `ledger_editor.utils.atomic_edit`
+## `ledgerkit_editor.utils.atomic_edit`
 
 ### `atomic_edit`
 
@@ -149,7 +189,7 @@ def atomic_edit(text_area: TextArea) -> Iterator[None]:
 
 ---
 
-## `ledger_editor.commands`
+## `ledgerkit_editor.commands`
 
 ### `Command`
 
@@ -178,7 +218,7 @@ class CommandHistory:
 
 ---
 
-## `ledger_editor.themes`
+## `ledgerkit_editor.themes`
 
 ### `VALID_THEMES`
 
@@ -193,7 +233,7 @@ included automatically.
 
 ---
 
-## `ledger_editor.app`
+## `ledgerkit_editor.app`
 
 ### `LedgerApp`
 
@@ -222,7 +262,7 @@ def main(argv: list[str] | None = None) -> None:
 
 ---
 
-## `ledger_editor.widgets.BalanceSidebar`
+## `ledgerkit_editor.widgets.BalanceSidebar`
 
 ```python
 class BalanceSidebar(Widget):
@@ -230,7 +270,7 @@ class BalanceSidebar(Widget):
     async def refresh_balances(self) -> None: ...
 ```
 
-## `ledger_editor.widgets.JournalEditor`
+## `ledgerkit_editor.widgets.JournalEditor`
 
 ```python
 class JournalEditor(Widget):
@@ -244,7 +284,7 @@ class JournalEditor(Widget):
         """Consults CommandHistory first; falls through to LedgerTextArea.action_redo()."""
 ```
 
-## `ledger_editor.widgets.FilterPopup`
+## `ledgerkit_editor.widgets.FilterPopup`
 
 ```python
 class FilterPopup(Widget):
@@ -253,7 +293,7 @@ class FilterPopup(Widget):
 
 ---
 
-## `ledger_editor.widgets.search_bar`
+## `ledgerkit_editor.widgets.search_bar`
 
 ### `_build_offset_table`
 
@@ -311,7 +351,7 @@ class SearchBar(Widget):
 
 ---
 
-## `ledger_editor.widgets.reconcile_actions`
+## `ledgerkit_editor.widgets.reconcile_actions`
 
 ### `_find_transaction_header_above`
 
@@ -364,7 +404,7 @@ class ReconcileMixin:
 
 ---
 
-## `ledger_editor.widgets.reconcile_bar`
+## `ledgerkit_editor.widgets.reconcile_bar`
 
 ### `ReconcileStatusBar`
 
@@ -385,7 +425,7 @@ class ReconcileStatusBar(Widget):
 
 ---
 
-## `ledger_editor.widgets.reconcile_summary`
+## `ledgerkit_editor.widgets.reconcile_summary`
 
 ### `ReconcileSummary`
 
@@ -409,7 +449,7 @@ class ReconcileSummary(Widget):
 
 ---
 
-## `ledger_editor.widgets.register_panel` (updated)
+## `ledgerkit_editor.widgets.register_panel` (updated)
 
 ### `_cached_register_rows`
 
@@ -428,7 +468,7 @@ def _cached_register_rows(
 
 ---
 
-## `ledger_editor.widgets.ledger_textarea`
+## `ledgerkit_editor.widgets.ledger_textarea`
 
 ### `LedgerTextArea`
 
@@ -463,7 +503,7 @@ class LedgerTextArea(TextArea):
 
 ---
 
-## `ledger_editor.highlighting`
+## `ledgerkit_editor.highlighting`
 
 ### `LineKind`
 
@@ -523,7 +563,7 @@ def build_textarea_theme(app: App) -> TextAreaTheme:
 
 ---
 
-## `ledger_editor.themes`
+## `ledgerkit_editor.themes`
 
 ### `register_all`
 

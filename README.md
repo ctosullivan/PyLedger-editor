@@ -1,4 +1,4 @@
-# Ledger Editor
+# LedgerKit Editor
 
 > **Early beta — use with caution.** This software is under active development and
 > **may corrupt your journal files**. Always keep a backup before editing. Do not
@@ -6,7 +6,7 @@
 
 A terminal-based, keyboard-driven plain-text [hledger](https://hledger.org/) journal
 editor built with [Textual](https://textual.textualize.io/) and
-[PyLedger](https://github.com/ctosullivan/PyLedger).
+[ledgerkit](https://github.com/ctosullivan/ledgerkit).
 
 ## Features
 
@@ -34,24 +34,22 @@ python -m venv .venv
 .venv\Scripts\activate        # Windows
 # source .venv/bin/activate   # macOS / Linux
 
-# PyLedger must be installed from the vendor checkout —
-# the 'pyledger' package on PyPI is a stub and will not work.
 pip install --upgrade pip
-pip install -e vendor/pyledger/
+pip install -e vendor/ledgerkit/
 
-# Install Ledger Editor and its remaining dependencies
+# Install LedgerKit Editor and its remaining dependencies
 pip install textual==8.2.5 pytest pytest-asyncio
 pip install -e .
 
 # Launch
-ledger-editor path/to/my.journal
+ledgerkit-editor path/to/my.journal
 ```
 
 ### Requirements
 
-- Python 3.00+
+- Python 3.8+
 - textual 8.2.5 (installed automatically via `pip install -e .`)
-- pyledger 0.5.0 (installed manually from `vendor/pyledger/` — see above)
+- ledgerkit 0.1.0 (installed from `vendor/ledgerkit/` — see above)
 
 ## Journal File Resolution
 
@@ -69,7 +67,7 @@ See [docs/shortcuts.md](docs/shortcuts.md) for the full reference.
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and the
-PyLedger vendor update workflow.
+ledgerkit vendor update workflow.
 
 ## Roadmap
 

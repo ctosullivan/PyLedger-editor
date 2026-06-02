@@ -1,12 +1,12 @@
-"""Tests for ledger_editor.keybindings action stubs.
+"""Tests for ledgerkit_editor.keybindings action stubs.
 
 These are structural / smoke tests confirming the action methods exist and
 are callable. Behavioural tests will be added when the widget implementations
 are complete.
 """
 
-from ledger_editor.keybindings.emacs_ledger import EmacsLedgerBindings
-from ledger_editor.keybindings.office import OfficeBindings
+from ledgerkit_editor.keybindings.emacs_ledger import EmacsLedgerBindings
+from ledgerkit_editor.keybindings.office import OfficeBindings
 
 
 class ConcreteOffice(OfficeBindings):

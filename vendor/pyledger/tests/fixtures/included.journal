@@ -1,5 +1,0 @@
-; included.journal — fixture for include directive tests
-
-2024-02-01 Included transaction
-    assets:bank:checking       £100.00
-    income:freelance          -£100.00

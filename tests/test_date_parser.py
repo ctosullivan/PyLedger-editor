@@ -1,10 +1,10 @@
-"""Tests for ledger_editor.utils.date_parser."""
+"""Tests for ledgerkit_editor.utils.date_parser."""
 
 import datetime
 
 import pytest
 
-from ledger_editor.utils.date_parser import DateParseError, parse_date, parse_date_range
+from ledgerkit_editor.utils.date_parser import DateParseError, parse_date, parse_date_range
 
 TODAY = datetime.date(2024, 6, 15)
 

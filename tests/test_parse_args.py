@@ -1,10 +1,10 @@
-"""Tests for CLI argument parsing in ledger_editor.app._parse_args."""
+"""Tests for CLI argument parsing in ledgerkit_editor.app._parse_args."""
 
 from __future__ import annotations
 
 import pytest
 
-from ledger_editor.app import _parse_args
+from ledgerkit_editor.app import _parse_args
 
 
 def test_defaults() -> None:

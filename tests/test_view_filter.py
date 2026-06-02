@@ -3,9 +3,9 @@
 from pathlib import Path
 from datetime import date as _date
 
-from ledger_editor.app import LedgerApp
-from ledger_editor.widgets.transaction_table import JournalEditor
-from ledger_editor.widgets.view_filter_bar import ViewFilterBar
+from ledgerkit_editor.app import LedgerApp
+from ledgerkit_editor.widgets.transaction_table import JournalEditor
+from ledgerkit_editor.widgets.view_filter_bar import ViewFilterBar
 from textual.widgets import TextArea
 
 # A journal with preamble directives and an interleaved directive between transactions.

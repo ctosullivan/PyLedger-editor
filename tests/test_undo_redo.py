@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ledger_editor.app import LedgerApp
-from ledger_editor.widgets.transaction_table import JournalEditor
+from ledgerkit_editor.app import LedgerApp
+from ledgerkit_editor.widgets.transaction_table import JournalEditor
 from textual.widgets import TextArea
 
 FIXTURES = Path(__file__).parent / "fixtures"

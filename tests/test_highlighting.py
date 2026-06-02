@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import pytest
 
-from ledger_editor.highlighting import tokens
-from ledger_editor.highlighting.highlighter import (
+from ledgerkit_editor.highlighting import tokens
+from ledgerkit_editor.highlighting.highlighter import (
     LedgerHighlighter,
     LineInfo,
     LineKind,
 )
-from ledger_editor.highlighting.theme_bridge import build_textarea_theme
+from ledgerkit_editor.highlighting.theme_bridge import build_textarea_theme
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ class TestBuildTextareaTheme:
         assert tokens.DATE in theme.syntax_styles
 
     def test_foreground_tokens_all_present(self) -> None:
-        import ledger_editor.highlighting.tokens as t
+        import ledgerkit_editor.highlighting.tokens as t
         app = self._make_mock_app()
         theme = build_textarea_theme(app)  # type: ignore[arg-type]
         # Block tokens are intentionally omitted from the bridge theme.
@@ -499,7 +499,7 @@ class TestCpToByteMapping:
     """_build_cp_to_byte must return correct byte offsets for multibyte chars."""
 
     def _ctb(self, text: str) -> list[int]:
-        from ledger_editor.widgets.ledger_textarea import _build_cp_to_byte
+        from ledgerkit_editor.widgets.ledger_textarea import _build_cp_to_byte
         return _build_cp_to_byte(text)
 
     def test_ascii_only(self) -> None:

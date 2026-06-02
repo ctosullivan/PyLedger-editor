@@ -9,7 +9,7 @@ Add an entry whenever a non-obvious decision is made or a conflict is discovered
 
 **Decision**: 3-state cycle — uncleared → pending → cleared → uncleared
 
-**Mapping to PyLedger fields**:
+**Mapping to ledgerkit fields**:
 ```
 uncleared: cleared=False, pending=False
 pending:   cleared=False, pending=True
@@ -20,7 +20,7 @@ cleared:   cleared=True,  pending=False
 `"!"` (pending) state is useful for recording transactions that have been
 initiated but not yet confirmed (e.g. cheques in transit).
 
-**Note**: PyLedger v0.5.0 does NOT have a `Transaction.flag` field — the prompt
+**Note**: ledgerkit does NOT have a `Transaction.flag` field — the prompt
 spec was incorrect. The actual fields are `Transaction.cleared: bool` and
 `Transaction.pending: bool`. All toggle logic must use these two booleans.
 
@@ -48,9 +48,9 @@ during editing. Editors should never silently discard data.
 
 **Implementation notes**:
 - Sort is stable on equal dates (preserve original order within a date).
-- Re-align: use PyLedger.journal_to_text() output as the canonical tidy form,
+- Re-align: use ledgerkit.journal_to_text() output as the canonical tidy form,
   then re-parse to confirm round-trip fidelity.
-- Validation: run `PyLedger` basic checks; surface errors in a notification bar.
+- Validation: run `ledgerkit` basic checks; surface errors in a notification bar.
 
 ---
 
@@ -63,7 +63,7 @@ with values `None / "*" / "!"`. After vendor checkout this was confirmed to be
 incorrect for v0.5.0. The actual model uses separate `bool` fields.
 
 **Consequence**: Any code, test, or documentation that references `Transaction.flag`
-is wrong and must be corrected. This is recorded in `knowledge_base/pyledger_api_notes.md`.
+is wrong and must be corrected. This is recorded in `knowledge_base/ledgerkit_api_notes.md`.
 
 ---
 
@@ -71,7 +71,7 @@ is wrong and must be corrected. This is recorded in `knowledge_base/pyledger_api
 
 **Decision**: CLI argument → `$LEDGER_FILE` → `~/.hledger.journal` → None (prompt on launch)
 
-**Rationale**: Matches PyLedger's own `cli.py` resolution order (hledger-compatible).
+**Rationale**: Matches ledgerkit's own `cli.py` resolution order (hledger-compatible).
 Using the same order means users familiar with hledger have no surprises.
 
 ---
@@ -93,6 +93,6 @@ Conflicts are documented here as discovered during implementation.
 **Decision**: pytest with pytest-asyncio (`asyncio_mode = "auto"`)
 
 **Rationale**: Textual's async widget tests require an async test runner.
-pytest-asyncio integrates cleanly. PyLedger itself uses unittest, but the
+pytest-asyncio integrates cleanly. ledgerkit itself uses unittest, but the
 editor's Textual widget tests would be significantly more verbose with unittest
 and no native async support.

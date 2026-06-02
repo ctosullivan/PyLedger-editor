@@ -2,31 +2,32 @@
 
 ## Project Identity
 
-This is **Ledger Editor**: a terminal-based, keyboard-driven plain-text ledger
+This is **LedgerKit Editor**: a terminal-based, keyboard-driven plain-text ledger
 editor built with [Textual](https://textual.textualize.io/) and
-[PyLedger](https://github.com/ctosullivan/PyLedger).
+[ledgerkit](https://github.com/ctosullivan/ledgerkit).
 
 - **Target Python**: 3.8+
 - **UI framework**: Textual (pinned to 8.2.5)
-- **Ledger backend**: PyLedger v0.5.1 (vendor-pinned, read-only)
+- **Ledger backend**: ledgerkit v0.1.0 (vendor-pinned, read-only)
 - **Supported file formats**: `.journal`, `.ledger` (hledger-compatible)
 
 See `dev-docs/architecture.md` for the module layout and data-flow diagram.
 
 ---
 
-## PyLedger Vendor Rule (CRITICAL)
+## ledgerkit Vendor Rule (CRITICAL)
 
-**Always consult `vendor/pyledger/` before writing any code that calls PyLedger.**
+**Always consult `vendor/ledgerkit/` before writing any code that calls ledgerkit.**
 
-1. Read `vendor/pyledger/dev-docs/api-spec.md` for the definitive function
+1. Read `vendor/ledgerkit/dev-docs/api-spec.md` for the definitive function
    signatures and return types.
-2. Read `vendor/pyledger/pyLedger/models.py` for the exact dataclass field names.
+2. Read `vendor/ledgerkit/ledgerkit/models.py` for the exact dataclass field names.
 3. **Never assume the API** — the prompt description may lag behind the actual
    source. The vendor checkout is authoritative.
 
-Key discrepancy vs original spec: `Transaction` uses **`cleared: bool`** and
-**`pending: bool`** (not a `flag: str | None` field). Always check models.py.
+Key notes: `Transaction` uses **`cleared: bool`** and **`pending: bool`**. The
+`Amount` model has a **`raw: Optional[str]`** field storing the original source
+string — used by `Journal.commodity_styles` to infer display formats.
 
 ### Vendor Update Workflow
 
@@ -34,18 +35,18 @@ See `CONTRIBUTING.md` for the full workflow. Short form:
 
 ```bash
 # 1. Remove write-lock
-attrib -R /S /D vendor\pyledger\*
+attrib -R /S /D vendor\ledgerkit\*
 
 # 2. Fetch new version
-git -C vendor/pyledger fetch --depth=1 origin refs/tags/vX.Y.Z
-git -C vendor/pyledger checkout FETCH_HEAD
+git -C vendor/ledgerkit fetch --depth=1 origin refs/tags/vX.Y.Z
+git -C vendor/ledgerkit checkout FETCH_HEAD
 
 # 3. Update pip dep and re-pin
-pip install pyledger==X.Y.Z
+pip install -e vendor/ledgerkit/
 pip freeze > requirements.txt
 
 # 4. Re-apply write-lock
-attrib +R /S /D vendor\pyledger\*
+attrib +R /S /D vendor\ledgerkit\*
 
 # 5. Compare CHANGELOG.md and dev-docs/api-spec.md; update knowledge_base/
 # 6. Run pytest
@@ -93,7 +94,7 @@ Every regular expression — whether compiled with `re.compile()` or used inline
 2. **Group breakdown** — each capture group by index and name
 3. **Edge cases** — non-obvious inputs it accepts or rejects
 
-See `vendor/pyledger/CLAUDE.md` for the exact required style with a worked
+See `vendor/ledgerkit/CLAUDE.md` for the exact required style with a worked
 example. Replicate that style verbatim.
 
 ---
@@ -180,8 +181,8 @@ Sections to maintain:
 ## Folder Structure (do not change without approval)
 
 ```
-ledger-editor/
-├── src/ledger_editor/
+ledgerkit-editor/
+├── src/ledgerkit_editor/
 │   ├── app.py                   — LedgerApp (Textual App subclass)
 │   ├── widgets/
 │   │   ├── balance_sidebar.py   — BalanceSidebar widget
@@ -199,10 +200,10 @@ ledger-editor/
 │   ├── commands/__init__.py     — command palette stubs
 │   └── utils/
 │       ├── date_parser.py       — smart date parsing
-│       ├── ledger_io.py         — load/save via PyLedger
+│       ├── ledger_io.py         — load/save via ledgerkit
 │       └── file_resolver.py     — journal file resolution
 ├── tests/
-├── vendor/pyledger/             — READ-ONLY sparse checkout of PyLedger v0.5.0
+├── vendor/ledgerkit/            — READ-ONLY checkout of ledgerkit v0.1.0
 ├── knowledge_base/              — project-specific knowledge
 ├── docs/                        — user-facing documentation
 ├── dev-docs/                    — developer/AI documentation
