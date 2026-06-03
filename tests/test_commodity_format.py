@@ -83,6 +83,24 @@ class TestExtractCommodityStyles:
         # "1,500.00 EUR" should detect comma group separator
         assert styles["EUR"].group_separator == ","
 
+    def test_prefers_richer_format_over_first_seen(self) -> None:
+        """When the first EUR amount has no comma but a later one does, use the comma style."""
+        import ledgerkit  # noqa: PLC0415
+        text = (
+            "2024-01-01 * Small\n"
+            "    assets:bank  10.00 EUR\n"
+            "    equity:opening\n"
+            "\n"
+            "2024-02-01 * Large\n"
+            "    assets:bank  1,500.00 EUR\n"
+            "    income:salary\n"
+        )
+        journal = ledgerkit.parse_string_lenient(text)[0]
+        styles = extract_commodity_styles(journal)
+        assert styles["EUR"].group_separator == ",", (
+            "should prefer the comma-format amount over the first no-comma amount"
+        )
+
     def test_sample_journal_has_no_styles_when_no_raw(self) -> None:
         journal = _load("sample.journal")
         styles = extract_commodity_styles(journal)
@@ -140,18 +158,21 @@ class TestApplyCommodityStyles:
         assert "£30.00" in result
 
     def test_negative_prefix_reformatted_symbol_first(self) -> None:
-        # Input: £-50 (symbol then minus — the form ledgerkit writer produces)
+        # Input: £-50 (symbol then minus — appears in files saved by hledger or buggy save)
         text = "2024-01-01 * Refund\n    assets:bank  £-50\n    income:refund\n"
         result = apply_commodity_styles(text, {"£": self._gbp_style()})
-        # CommodityStyle.format() uses hledger convention: £-50.00
-        assert "£-50.00" in result
+        # Must produce -£50.00 (minus before symbol) — the only form the ledgerkit
+        # parser accepts; "£-50.00" (symbol before minus) causes ParseError on reload.
+        assert "-£50.00" in result
+        assert "£-50.00" not in result.replace("-£50.00", "")
 
     def test_negative_prefix_reformatted_minus_first(self) -> None:
-        # Input: -£50 (minus then symbol — the hledger-native input form)
+        # Input: -£50 (minus then symbol — the form ledgerkit writer produces)
         text = "2024-01-01 * Refund\n    assets:bank  -£50\n    income:refund\n"
         result = apply_commodity_styles(text, {"£": self._gbp_style()})
-        # CommodityStyle.format() normalises to £-50.00
-        assert "£-50.00" in result
+        # Must produce -£50.00 (minus before symbol) for parser round-trip safety.
+        assert "-£50.00" in result
+        assert "£-50.00" not in result.replace("-£50.00", "")
 
     def test_negative_suffix_reformatted(self) -> None:
         text = "2024-01-01 * Expense\n    assets:bank  -200 EUR\n    expenses:travel\n"
@@ -191,7 +212,9 @@ class TestApplyCommodityStyles:
         # EUR amounts should be formatted with 2dp and comma group separator
         assert "1,500.00 EUR" in result
         assert "2,000.00 EUR" in result
-        # GBP positive amount should be prefix with 2dp
+        # GBP positive amount should be prefix with 2dp and comma group separator
         assert "£1,200.00" in result
-        # GBP negative: -£300.00 (input) is normalised to £-300.00 (CommodityStyle output)
-        assert "£-300.00" in result
+        # GBP negative: output must be -£300.00 (minus before symbol) so the
+        # ledgerkit parser can round-trip it; £-300.00 causes ParseError on reload.
+        assert "-£300.00" in result
+        assert "£-300.00" not in result.replace("-£300.00", "")

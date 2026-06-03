@@ -281,9 +281,7 @@ class JournalEditor(Widget):
         # Non-transaction blocks (directives, comments, blank-line separators)
         # captured when entering a filter so they survive the mode-0 restore.
         self._filter_non_txn_blocks: list[str] = []
-        # Commodity display styles inferred from the journal on load; used to
-        # propagate consistent formatting throughout the file on save.
-        self._commodity_styles: dict = {}
+        # (commodity styles are now computed per-save from the current text)
 
     def compose(self) -> ComposeResult:
         """Render ViewFilterBar, LedgerTextArea, and hidden SearchBar."""
@@ -295,12 +293,7 @@ class JournalEditor(Widget):
 
     def on_mount(self) -> None:
         """Load the raw journal text into the TextArea and focus it."""
-        import ledgerkit  # noqa: PLC0415
-        from ledgerkit_editor.utils.commodity_format import extract_commodity_styles  # noqa: PLC0415
-
-        doc = ledgerkit.EditorDocument(str(self.journal_path))
-        text = "\n".join(doc.lines)
-        self._commodity_styles = extract_commodity_styles(doc.journal)
+        text = Path(self.journal_path).read_text(encoding="utf-8")
         textarea = self.query_one("#journal_textarea", TextArea)
         textarea.load_text(text)
         self._last_saved_text = text
@@ -484,10 +477,16 @@ class JournalEditor(Widget):
             self.app.notify(str(err), severity="warning")
 
         from ledgerkit_editor.utils.ledger_io import align_posting_amounts, split_journal_segments  # noqa: PLC0415
-        from ledgerkit_editor.utils.commodity_format import apply_commodity_styles  # noqa: PLC0415
+        from ledgerkit_editor.utils.commodity_format import apply_commodity_styles, extract_commodity_styles  # noqa: PLC0415
         # Extract non-transaction blocks (directives, comments, blank-line separators)
         # before sorting so they can be woven back in at their original positions.
         non_txn_blocks, _ = split_journal_segments(text, journal.transactions)
+
+        # Infer commodity styles from the current text so that: (a) edits that
+        # add or change group separators are picked up immediately, and (b) the
+        # "prefer richest format" pass in extract_commodity_styles upgrades any
+        # commodity whose first-seen amount has no group separator.
+        commodity_styles = extract_commodity_styles(journal)
 
         journal.transactions.sort(key=lambda t: t.date)
 
@@ -500,7 +499,7 @@ class JournalEditor(Widget):
             parts.append(non_txn_blocks[i + 1])
         # Apply commodity formatting first, then re-align columns so that
         # reformatted amounts (potentially wider or narrower) are spaced correctly.
-        sorted_text = apply_commodity_styles("".join(parts), self._commodity_styles)
+        sorted_text = apply_commodity_styles("".join(parts), commodity_styles)
         sorted_text = align_posting_amounts(sorted_text)
 
         saved_loc = textarea.cursor_location

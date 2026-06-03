@@ -122,21 +122,46 @@ _NEGATIVE_PREFIX_RE = re.compile(r"^-([^\d,.\s-]+)([\d,.][\d,.]*)$")
 # ---------------------------------------------------------------------------
 
 def extract_commodity_styles(journal: "Journal") -> "dict[str, CommodityStyle]":
-    """Return the commodity styles inferred from a parsed Journal.
+    """Return commodity styles inferred from a parsed Journal.
 
-    Delegates directly to ``Journal.commodity_styles`` (ledgerkit v0.1.0+),
-    which infers each commodity's CommodityStyle from the first raw amount
-    string seen in the journal, with explicit ``commodity`` directives taking
-    priority.
+    Delegates to ``Journal.commodity_styles`` for the base styles (first-seen
+    amount per commodity, with ``commodity`` directives taking priority), then
+    upgrades any commodity whose first-seen amount had no group separator if a
+    later amount does have one.
+
+    This "prefer richest format" pass ensures that files where small amounts
+    (e.g. ``10.00 EUR``) precede large ones (e.g. ``1,500.00 EUR``) correctly
+    infer the comma group separator from the larger amount.
 
     Args:
-        journal: A parsed Journal object (from ledgerkit.load or EditorDocument).
+        journal: A parsed Journal object (from ledgerkit.load or parse_string).
 
     Returns:
-        Dict mapping commodity symbol → CommodityStyle. Empty dict when the
+        Dict mapping commodity symbol → CommodityStyle.  Empty when the
         journal has no amounts with raw strings.
     """
-    return journal.commodity_styles
+    from ledgerkit.commodity_style import CommodityStyle  # noqa: PLC0415
+
+    styles: dict = dict(journal.commodity_styles)
+
+    # Upgrade any commodity whose base style has no group separator if a
+    # later posting has one — handles mixed-format files.
+    for txn in journal.transactions:
+        for p in txn.postings:
+            if not (p.amount and p.amount.raw and p.amount.commodity):
+                continue
+            commodity = p.amount.commodity
+            current = styles.get(commodity)
+            if current is None or current.group_separator:
+                continue  # not tracked yet, or already has a group separator
+            try:
+                candidate = CommodityStyle.infer(commodity, p.amount.raw)
+                if candidate.group_separator:
+                    styles[commodity] = candidate
+            except Exception:  # noqa: BLE001
+                pass
+
+    return styles
 
 
 def apply_commodity_styles(
@@ -233,7 +258,13 @@ def _reformat_amount(
         qty = _parse_numeric(("-" if sign else "") + numeric)
         if qty is None:
             return None
-        return style.format(qty)
+        formatted = style.format(qty)
+        # CommodityStyle.format() for negative prefix produces "SYMBOL-NUMBER"
+        # (e.g. "£-300.00") but the ledgerkit parser only accepts "-SYMBOL+NUMBER"
+        # (e.g. "-£300.00").  Convert to the parseable form.
+        if sign and style.prefix and formatted.startswith(commodity + "-"):
+            formatted = "-" + commodity + formatted[len(commodity) + 1:]
+        return formatted
 
     # Try negative-prefix style (e.g. "-£30.00").
     m = _NEGATIVE_PREFIX_RE.match(amount_str)
@@ -245,7 +276,13 @@ def _reformat_amount(
         qty = _parse_numeric("-" + numeric)
         if qty is None:
             return None
-        return style.format(qty)
+        formatted = style.format(qty)
+        # CommodityStyle.format() for negative prefix produces "SYMBOL-NUMBER"
+        # (e.g. "£-300.00") but the ledgerkit parser only accepts "-SYMBOL+NUMBER"
+        # (e.g. "-£300.00").  Convert to the parseable form.
+        if style.prefix and formatted.startswith(commodity + "-"):
+            formatted = "-" + commodity + formatted[len(commodity) + 1:]
+        return formatted
 
     return None
 

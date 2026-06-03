@@ -1,42 +1,47 @@
 # CONTEXT.md — Session Working Memory
 
 ## Current Task
-Migration to ledgerkit + project rename + commodity formatting — complete.
+Fixed two commodity formatting bugs: negative prefix corruption and comma group separator not preserved.
 
 ## Where We Are
-All three phases implemented and 281 tests passing. No open tasks.
+All 282 tests passing. Both bugs fixed and documented.
 
 ## Decisions In Flight
 None.
 
-## Files Currently Relevant
-- `src/ledgerkit_editor/utils/commodity_format.py` — new module (Phase 3)
-- `src/ledgerkit_editor/widgets/transaction_table.py` — wired commodity styles in on_mount + action_save
-- `vendor/ledgerkit/` — new vendor package (v0.1.0, replaces pyledger)
-- `tests/test_commodity_format.py` — new tests (25 tests)
-- `tests/fixtures/multicommodity.journal` — new multi-commodity fixture
+## Files Changed This Session
+- `src/ledgerkit_editor/utils/commodity_format.py` — `_reformat_amount` fix (£-300 form), `extract_commodity_styles` "prefer richest format" upgrade
+- `src/ledgerkit_editor/widgets/transaction_table.py` — `on_mount` simplified; `action_save` now computes styles per-save
+- `tests/test_commodity_format.py` — updated negative-prefix tests + added `test_prefers_richer_format_over_first_seen`
 
-## Decisions Made This Session
-- Negative prefix amounts: ledgerkit parser accepts `-£300.00` (minus first) as
-  input but `CommodityStyle.format()` outputs `£-300.00` (symbol first). The
-  commodity_format post-processor handles both input forms and normalises to the
-  CommodityStyle output form. This matches ledgerkit's own writer convention.
-- Project root directory (PyLedger-editor/) was NOT renamed — only the Python
-  module inside src/ was renamed (ledger_editor → ledgerkit_editor). The GitHub
-  repo URL stays as-is.
-- `pyledger_api_notes.md` kept as historical reference; `ledgerkit_api_notes.md`
-  is the authoritative current reference.
-- vendor/pyledger_old deleted (rollback no longer available).
+## Bugs Fixed
+
+### Bug 1: Negative prefix amounts corrupted on save
+`CommodityStyle.format()` produces `£-300.00` (symbol-then-minus) for negative prefix
+amounts, but the ledgerkit parser only accepts `-£300.00` (minus-then-symbol). Phase 3
+was passing the `format()` output directly, writing an unparseable form. On the next save
+the transaction was silently dropped. Fixed: both `_PREFIX_RE` (sign="-") and
+`_NEGATIVE_PREFIX_RE` branches now normalise `SYMBOL-NUMBER` → `-SYMBOL+NUMBER`.
+
+### Bug 2: Comma group separator lost when first amount has none
+`Journal.commodity_styles` uses the first-seen amount per commodity. If that amount is
+small (e.g. `10.00 EUR`, no comma), later large amounts (`1,500.00 EUR`) lose their
+commas on save. Fixed: `extract_commodity_styles` now adds a "prefer richest format" pass
+that upgrades any base style with no group separator when a later amount has one.
+
+### Bug 2b: Styles frozen at on_mount time
+`action_save` used `self._commodity_styles` set during `on_mount` (from the initial
+file). Edits that added commas to previously comma-less amounts were ignored. Fixed:
+`action_save` now calls `extract_commodity_styles(journal)` per-save using the current
+parsed journal. `on_mount` simplified to `Path.read_text` (no longer needs `EditorDocument`).
 
 ## What NOT To Revisit
-- All PyLedger → ledgerkit renames are complete. Do not add back any PyLedger
-  references.
-- Phase 3 commodity formatting uses ledgerkit's `Journal.commodity_styles`
-  property for detection — no custom detection logic needed.
+- All PyLedger → ledgerkit renames are complete.
+- Phase 3 commodity formatting now handles both bugs.
 
 ## Recent Git State
+d2026da feat: migrate to ledgerkit v0.1.0, rename to ledgerkit-editor
 5da045d feat: add --line=N and --theme=THEME CLI arguments; bump to v0.9.4
 d6b9585 feat: cursor-position-aware date shifting with Shift+Up/Down; bump to v0.9.3
 fad5fa4 fix: preserve directives/comments across filter-view cycle; bump to v0.9.2
 3652c73 fix: search bar Tab focus and invisible nav buttons; bump to v0.9.1
-5f86436 feat: preserve directives on save; update PyLedger to v0.5.1
