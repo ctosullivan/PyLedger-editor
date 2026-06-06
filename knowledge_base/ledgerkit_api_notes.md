@@ -3,8 +3,55 @@
 Authoritative reference: `vendor/ledgerkit/dev-docs/api-spec.md`
 Source models: `vendor/ledgerkit/ledgerkit/models.py`
 
-Installed version: **0.1.0** (Python import: `import ledgerkit`)
+Installed version: **0.2.0** (Python import: `import ledgerkit`)
 Package directory in repo: `ledgerkit/`.
+
+### v0.2.0 additions (2026-06-06)
+
+**New model fields** (both default to `None`; no breaking changes):
+
+- `Transaction.date2: datetime.date | None` — secondary/auxiliary date from `DATE=DATE2`
+  syntax (e.g. `2024-02-20=2024-02-22`). Inserted between `date` and `description` in the
+  dataclass. `None` for every transaction without a secondary date.
+- `Posting.cost_raw: str | None` — raw cost annotation string from `@ AMOUNT` or
+  `@@ AMOUNT` forms, e.g. `"$180.00"` from `10 AAPL @ $180.00`. The `amount` field holds
+  only the primary quantity (`10 AAPL`). Lot annotations (`{}`, `{{}}`) are stripped from
+  the amount but do NOT populate `cost_raw` — they produce `cost_raw=None`.
+
+**New class — `ParseWarning`**:
+
+```python
+from ledgerkit.parser import ParseWarning  # NOT re-exported from ledgerkit.__init__
+```
+
+Subclass of `ParseError`. Appended to the `errors_out` list in `parse_string_lenient` for
+constructs that are skipped rather than hard-failed:
+
+| Construct | Warning message |
+|---|---|
+| `~ monthly …` periodic rule | `periodic transaction rule (~) skipped (not supported in v1)` |
+| `= expenses:food` auto-posting rule | `auto-posting rule (=) skipped (not supported in v1)` |
+| Nested `apply account` | `nested apply account: previous prefix replaced (nesting not supported)` |
+
+Journal still loads fully when warnings appear. Distinguish with `isinstance(e, ParseWarning)`.
+Editor impact: `action_save` in `transaction_table.py` shows `ParseWarning` at `"information"`
+severity and hard `ParseError` at `"warning"`.
+
+**New amount formats** (parser-only; no API change):
+- `$-300` — sign after prefix symbol
+- `1 000 000 JPY` — space digit-group separators
+- `1E3 EUR` — scientific E-notation
+- `3 "Chocolate Frogs"` — quoted commodity names
+- `10 AAPL @ $180.00` — unit cost annotation (`cost_raw` populated)
+- `5 AAPL @@ $920.00` — total cost annotation (`cost_raw` populated)
+- `3 AAPL {$182} [2024-01-01] (lot-A)` — lot annotations stripped; `cost_raw=None`
+
+**New directives supported**:
+- `Y YEAR` — default year for yearless dates (e.g. `03/15` → `2024-03-15`)
+- `D AMOUNT` — default commodity for no-symbol amounts
+- `apply account PREFIX` / `end apply account` — prepends prefix to posting accounts
+
+---
 
 ### Migration from PyLedger v0.5.1
 
@@ -51,7 +98,7 @@ Other notes:
 | `ledgerkit.CheckError` | dataclass | Validation error with check_name + message |
 | `ledgerkit.SourceSpan` | dataclass | Source line range for a parsed transaction |
 | `ledgerkit.balance_from_spec(journal, spec, query)` | `list[ReportSectionResult]` | Structured balance |
-| `ledgerkit.__version__` | `str` | `"0.1.0"` |
+| `ledgerkit.__version__` | `str` | `"0.2.0"` |
 
 ---
 
@@ -117,6 +164,7 @@ class Amount:
 @dataclass
 class Transaction:
     date: datetime.date
+    date2: datetime.date | None = None  # NEW in v0.2.0: secondary/auxiliary date
     description: str
     postings: list[Posting] = field(default_factory=list)
     cleared: bool = False          # True when marked with "*"
@@ -140,6 +188,7 @@ class Posting:
     source_line: int | None = None
     inferred: bool = False
     inline_comment: str | None = None
+    cost_raw: str | None = None    # NEW in v0.2.0: raw cost annotation, e.g. "$180.00"
 ```
 
 ### `Journal`

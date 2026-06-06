@@ -1,0 +1,22 @@
+; commodities.journal
+; Included by test.journal via an `include` directive.
+; Demonstrates `commodity` (declaration + display style + decimal mark)
+; and `P` (market price) directives.
+
+; commodity directives declare a valid commodity, its display style,
+; its digit-group mark, its decimal mark, and its display precision.
+commodity $1,000.00              ; USD: symbol left,  comma group, period decimal, 2dp
+commodity 1.000,00 EUR           ; EUR: symbol right, period group, comma decimal, 2dp
+commodity 1,000.0000 AAPL        ; a stock ticker, 4 decimal places
+commodity 0.00000000 BTC         ; 8 decimal places
+commodity 1,000. JPY              ; no decimal places
+commodity 1,000. gold             ; a non-currency commodity
+commodity 1,000. "Chocolate Frogs"  ; a commodity whose name needs double quotes
+
+; P directives declare market prices, used by -V / -X / --value reports.
+P 2024-01-01 AAPL $180.00
+P 2024-01-15 AAPL $182.50
+P 2024-02-01 AAPL $185.50
+P 2024-01-01 EUR  $1.09
+P 2024-01-15 BTC  $42000.00
+P 2024-02-01 BTC  $44500.00

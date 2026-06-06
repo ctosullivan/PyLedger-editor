@@ -1,0 +1,283 @@
+####################################################################
+# test.journal
+#
+# A feature-coverage test journal for hledger 1.52 journal format.
+# Goal: exercise as much journal syntax as possible in one parseable,
+# balanced file. The core checking-account chain and all balance
+# assertions are arithmetically consistent, so this should pass:
+#
+#     hledger -f test.journal check
+#     hledger -f test.journal check -s     # see strict-mode note below
+#     hledger -f test.journal print
+#     hledger -f test.journal bal --tree
+#     hledger -f test.journal print --auto --forecast
+#
+# Strict mode note: every account *posted to* is declared below, so
+# `check -s accounts` passes. A few intentionally exotic commodities
+# may still be flagged; that itself is a useful test.
+####################################################################
+
+# 1. COMMENTS ------------------------------------------------------
+# Line comments begin with # or ;
+; this is also a comment line
+
+comment
+This is a block comment. Everything between the `comment` line and
+the `end comment` line (or end of file) is ignored.
+end comment
+
+
+# 2. FILE-LEVEL DIRECTIVES ----------------------------------------
+Y 2024                  ; default year for any yearless dates below
+D $1,000.00             ; default commodity + style for no-symbol amounts
+
+include comprehensive-hledger-test-commodities.journal
+; pull in commodity & P directives
+
+# payee directives declare valid payees (enforced by `check payees`)
+payee Whole Foods
+payee Trader Joe's
+payee Gringotts
+
+# tag directives declare valid tag names (enforced by `check tags`)
+tag trip
+tag category
+tag item
+
+
+# 3. ACCOUNT DIRECTIVES -------------------------------------------
+# Declare the chart of accounts: documents intent, sets display order,
+# assigns types (A/L/E/R/X plus V=conversion), and carries tags.
+account assets                 ; type:A
+account liabilities            ; type:L
+account equity                 ; type:E
+account revenues               ; type:R
+account expenses               ; type:X
+account passifs:loan           ; type:L   
+; non-English name needs explicit type
+
+account assets:bank:checking   ; acctnum:1234567890, bank:Acme
+  ; an indented follow-on comment line for this account
+account assets:bank:savings
+account assets:bank:gold
+account assets:cash:wallet
+account assets:cash:pouch
+account assets:cash:euros
+account assets:investments:lot2
+account assets:investments:lots
+account assets:crypto:btc
+account assets:reserved        ; target of a balanced virtual posting
+
+account liabilities:credit-card
+account liabilities:tax
+
+account equity:opening-balances
+account equity:conversion      ; type:V   
+; used for explicit cost conversions
+account equity:reserved
+
+account revenues:salary
+account revenues:gifts
+
+account expenses:food          ; category:groceries
+account expenses:rent
+account expenses:fees
+account expenses:misc:long:path
+
+# accounts used only by the demo/assertion sections at the bottom
+account budget:food
+account budget:food-spent
+account test:usd
+account test:eur
+account test:both
+account test:sci
+account test:sci2
+account demo:assets
+account demo:assets:checking
+account demo:assets:savings
+account demo:apply:bank
+account demo:apply:income
+
+
+# 4. GENERATED-DATA RULES -----------------------------------------
+# Periodic transaction rule (~): generates txns with --forecast and
+# budget goals with `bal --budget`. NOTE the 2+ spaces before the desc.
+~ monthly  budget goals
+    (expenses:rent)    $500
+    (expenses:food)    $300
+
+# Auto posting rule (=): with --auto, adds a posting to every txn whose
+# posting matches `expenses:food`. *1.0 multiplies the matched amount.
+= expenses:food
+    (budget:food-spent)   *1.0
+
+
+####################################################################
+# 5. TRANSACTIONS
+####################################################################
+
+# Opening balances. Unmarked status. One posting amount left blank and
+# inferred so the entry balances ($-10900 here).
+2024-01-01 opening balances
+    assets:bank:checking      $1000
+    assets:bank:savings       $5000
+    assets:cash:wallet         $200
+    liabilities:credit-card    $-300
+    equity:opening-balances          ; amount inferred
+
+# Pending status (!), a (code), and a transaction comment.
+2024-01-03 ! (1001) pay rent
+    ; an indented transaction comment line
+    assets:bank:checking      $-500
+    expenses:rent              $500
+
+# Cleared status (*), payee | note description, posting tags incl. a
+# repeated tag with two values.
+2024-01-05 * Whole Foods | groceries   ; trip:2024:portland, category:groceries
+    assets:bank:checking    $-75.50
+    expenses:food            $75.50    ; item:produce, item:dairy
+
+# Cleared, with a code.
+2024-01-10 * (DEP-1002) monthly salary
+    assets:bank:checking     $2000
+    revenues:salary         $-2000
+
+# Cost notation: @ is per-unit cost (10 AAPL @ $180 = $1800).
+2024-01-15 * buy shares at unit cost
+    assets:investments:lot2    10 AAPL @ $180.00
+    assets:bank:checking            ; $-1800.00 inferred from the cost
+
+# --- Balance assertion: checking running balance to date is $624.50 ---
+# (1000 - 500 - 75.50 + 2000 - 1800 = 624.50)
+2024-01-20 * (REC) reconcile checking
+    assets:bank:checking      $0 = $624.50
+
+# Total cost: @@ is the cost for the whole posting.
+2024-01-16 * buy shares at total cost
+    assets:investments:lot2     5 AAPL @@ $920.00
+    assets:bank:savings      $-920.00
+
+# Cost-basis annotations (lot tracking): {UNITCOST} [DATE] (LABEL).
+# hledger 1.x preserves but ignores these; here it's an internal lot
+# transfer so it balances in AAPL with no cash involved.
+2024-01-18 * reclassify into a tracked lot
+    assets:investments:lots     3 AAPL {$182.00} [2024-01-18] (lot-A)
+    assets:investments:lot2    -3 AAPL
+
+# Total-cost basis form: {{TOTALCOST}}.
+2024-01-19 * second tracked lot, total-cost basis
+    assets:investments:lots     2 AAPL {{$370.00}} [2024-01-19] (lot-B)
+    assets:investments:lot2    -2 AAPL
+
+# Crypto with high-precision quantity and a unit cost.
+2024-01-22 * buy bitcoin
+    assets:crypto:btc          0.05 BTC @ $42000.00
+    assets:bank:savings      $-2100.00
+
+# Tags on their own indented comment lines.
+2024-01-25 * Trader Joe's | weekly shop
+    ; trip:2024:portland
+    ; category:groceries
+    assets:bank:checking     $-60.00
+    expenses:food             $60.00
+
+# Posting date via a date: tag (expense in Jan, bank clears in Feb).
+2024-01-30 * posting-date tag demo
+    expenses:food             $20.00
+    assets:bank:checking             ; date:2024-02-02
+
+# Posting date via Ledger-style bracketed date.
+2024-01-31 * bracketed posting-date demo
+    expenses:fees              $5.00
+    assets:bank:checking             ; [2024-02-03]
+
+# Commodity move: a bare-word commodity (gold), payee | note.
+2024-02-01 * Gringotts | withdrawal
+    assets:bank:gold          -10 gold
+    assets:cash:pouch          10 gold
+
+# A commodity whose symbol needs double quotes.
+2024-02-02 * receive gift
+    revenues:gifts             -3 "Chocolate Frogs"
+    assets:cash:pouch           3 "Chocolate Frogs"
+
+# Mixed decimal marks in one file: EUR uses a comma decimal (per its
+# commodity directive) while $ uses a period. @ converts for balancing.
+2024-02-03 * buy euros
+    assets:bank:checking    $-109.00
+    assets:cash:euros        100,00 EUR @ $1.09
+
+# Secondary/auxiliary date: DATE=DATE2 after the primary date.
+2024-02-20=2024-02-22 * (CHK-204) deferred payment
+    expenses:fees              $3.00
+    assets:bank:checking
+
+# International number: space digit-group separators.
+2024-02-25 * large transfer, spaced digit groups
+    assets:bank:savings       1 000 000 JPY
+    equity:opening-balances
+
+# Virtual postings: () unbalanced virtual, [] balanced virtual (the
+# bracketed pair must balance among themselves). Real postings balance.
+2024-02-10 * budget tracking with virtual postings
+    expenses:food             $40.00
+    assets:bank:checking     $-40.00
+    (budget:food)            $-40.00     ; unbalanced virtual (parentheses)
+    [assets:reserved]         $40.00     ; balanced virtual (brackets)
+    [equity:reserved]        $-40.00
+
+# A dated note with no postings at all (allowed).
+2024-02-15 note: filed quarterly taxes
+
+
+####################################################################
+# 6. ADVANCED BALANCE ASSERTIONS (self-contained demo accounts)
+####################################################################
+
+# == is a sole-commodity assertion: asserts the balance AND that no
+# other commodity is present. test:both takes the inferred remainder.
+2024-03-01 * sole-commodity assertion demo
+    test:usd       $-1  == $-1
+    test:eur     -1,00 EUR == -1,00 EUR
+    test:both
+
+# ==* is subaccount-inclusive AND sole-commodity: demo:assets plus all
+# its subaccounts hold exactly $20 and nothing else.
+2024-03-02 * subaccount-inclusive assertion demo
+    equity:opening-balances
+    demo:assets:checking      $10
+    demo:assets:savings       $10
+    demo:assets                $0 ==* $20
+
+# Scientific E-notation, combined with the comma-decimal commodity.
+2024-03-03 * scientific notation demo
+    test:sci      1E3 EUR
+    test:sci2    -1E3 EUR
+
+
+####################################################################
+# 7. apply account  (prepends a parent account to a region)
+####################################################################
+apply account demo:apply
+2024-04-01 * apply-account demo
+    bank        $50            ; becomes demo:apply:bank
+    income     $-50            ; becomes demo:apply:income
+end apply account
+
+
+####################################################################
+# 8. alias  (rewrites account names within a region)
+####################################################################
+alias shortcut = expenses:misc:long:path
+2024-04-05 * alias demo
+    shortcut       $10         ; rewritten to expenses:misc:long:path
+    assets:cash:wallet  $-10
+end aliases
+
+
+####################################################################
+# 9. Yearless date (uses Y 2024) + no-symbol amounts (use D's $)
+####################################################################
+03/15 * yearless date and default-commodity demo
+    expenses:fees       2.00   ; no symbol -> $2.00 via the D directive
+    assets:cash:wallet -2.00

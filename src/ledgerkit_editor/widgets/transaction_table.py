@@ -471,10 +471,13 @@ class JournalEditor(Widget):
 
         textarea = self.query_one("#journal_textarea", TextArea)
         text = textarea.text
+        from ledgerkit.parser import ParseWarning  # noqa: PLC0415
+
         journal, parse_errors = ledgerkit.parse_string_lenient(text)
 
         for err in parse_errors:
-            self.app.notify(str(err), severity="warning")
+            severity = "information" if isinstance(err, ParseWarning) else "warning"
+            self.app.notify(str(err), severity=severity)
 
         from ledgerkit_editor.utils.ledger_io import align_posting_amounts, split_journal_segments  # noqa: PLC0415
         from ledgerkit_editor.utils.commodity_format import apply_commodity_styles, extract_commodity_styles  # noqa: PLC0415

@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ledgerkit-editor"
-version = "0.9.4"
+version = "0.9.5"
 requires-python = ">=3.8"
 dependencies = [
     "textual==8.2.5",
     # ledgerkit is installed from vendor/ledgerkit/ in editable mode (pip install -e vendor/ledgerkit/).
     # Always use the vendor version. See CONTRIBUTING.md for setup instructions.
-    "ledgerkit==0.1.0",
+    "ledgerkit==0.2.0",
 ]
 
 [project.scripts]
