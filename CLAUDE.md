@@ -2,55 +2,37 @@
 
 ## Project Identity
 
-This is **LedgerKit Editor**: a terminal-based, keyboard-driven plain-text ledger
+This is **ledgerkit-editor**: a terminal-based, keyboard-driven plain-text ledger
 editor built with [Textual](https://textual.textualize.io/) and
 [ledgerkit](https://github.com/ctosullivan/ledgerkit).
 
-- **Target Python**: 3.8+
+- **Target Python**: 3.9+
 - **UI framework**: Textual (pinned to 8.2.5)
-- **Ledger backend**: ledgerkit v0.1.0 (vendor-pinned, read-only)
+- **Ledger backend**: ledgerkit v1.0.0.dev1 (PyPI dependency)
 - **Supported file formats**: `.journal`, `.ledger` (hledger-compatible)
 
 See `dev-docs/architecture.md` for the module layout and data-flow diagram.
 
 ---
 
-## ledgerkit Vendor Rule (CRITICAL)
+## ledgerkit API Rule (CRITICAL)
 
-**Always consult `vendor/ledgerkit/` before writing any code that calls ledgerkit.**
+**Always consult the installed ledgerkit package before writing any code that calls ledgerkit.**
 
-1. Read `vendor/ledgerkit/dev-docs/api-spec.md` for the definitive function
-   signatures and return types.
-2. Read `vendor/ledgerkit/ledgerkit/models.py` for the exact dataclass field names.
-3. **Never assume the API** — the prompt description may lag behind the actual
-   source. The vendor checkout is authoritative.
+1. Read `knowledge_base/ledgerkit_api_notes.md` for the definitive function
+   signatures, return types, and known edge cases.
+2. If in doubt, inspect the installed package source directly (e.g.
+   `python -c "import inspect, ledgerkit; print(inspect.getfile(ledgerkit))"`).
+3. **Never assume the API** — the notes may lag behind. The installed package is authoritative.
 
 Key notes: `Transaction` uses **`cleared: bool`** and **`pending: bool`**. The
 `Amount` model has a **`raw: Optional[str]`** field storing the original source
 string — used by `Journal.commodity_styles` to infer display formats.
 
-### Vendor Update Workflow
+### Updating ledgerkit
 
-See `CONTRIBUTING.md` for the full workflow. Short form:
-
-```bash
-# 1. Remove write-lock
-attrib -R /S /D vendor\ledgerkit\*
-
-# 2. Fetch new version
-git -C vendor/ledgerkit fetch --depth=1 origin refs/tags/vX.Y.Z
-git -C vendor/ledgerkit checkout FETCH_HEAD
-
-# 3. Update pip dep and re-pin
-pip install -e vendor/ledgerkit/
-pip freeze > requirements.txt
-
-# 4. Re-apply write-lock
-attrib +R /S /D vendor\ledgerkit\*
-
-# 5. Compare CHANGELOG.md and dev-docs/api-spec.md; update knowledge_base/
-# 6. Run pytest
-```
+See `CONTRIBUTING.md`. Short form: bump the pin in `pyproject.toml`, run
+`pip install -e .`, update `knowledge_base/ledgerkit_api_notes.md`.
 
 ---
 
@@ -94,8 +76,7 @@ Every regular expression — whether compiled with `re.compile()` or used inline
 2. **Group breakdown** — each capture group by index and name
 3. **Edge cases** — non-obvious inputs it accepts or rejects
 
-See `vendor/ledgerkit/CLAUDE.md` for the exact required style with a worked
-example. Replicate that style verbatim.
+See the ledgerkit source for the canonical style example. Replicate that style verbatim.
 
 ---
 
@@ -203,13 +184,12 @@ ledgerkit-editor/
 │       ├── ledger_io.py         — load/save via ledgerkit
 │       └── file_resolver.py     — journal file resolution
 ├── tests/
-├── vendor/ledgerkit/            — READ-ONLY checkout of ledgerkit v0.1.0
 ├── knowledge_base/              — project-specific knowledge
 ├── docs/                        — user-facing documentation
 ├── dev-docs/                    — developer/AI documentation
 ├── CLAUDE.md                    — this file
 ├── CONTEXT.md                   — session working memory
-├── CONTRIBUTING.md              — vendor update + dev guide
+├── CONTRIBUTING.md              — dev setup + dependency update guide
 ├── CHANGELOG.md
 ├── ROADMAP.md
 └── pyproject.toml

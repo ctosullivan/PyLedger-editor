@@ -1,12 +1,17 @@
-# LedgerKit Editor
+# ledgerkit-editor
+
+[![CI](https://github.com/ctosullivan/ledgerkit-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/ctosullivan/ledgerkit-editor/actions/workflows/ci.yml)
+
+A keyboard-driven terminal editor for hledger plain-text accounting journals.
 
 > **Early beta — use with caution.** This software is under active development and
 > **may corrupt your journal files**. Always keep a backup before editing. Do not
 > use on irreplaceable data without a recovery plan.
 
-A terminal-based, keyboard-driven plain-text [hledger](https://hledger.org/) journal
-editor built with [Textual](https://textual.textualize.io/) and
+Built with [Textual](https://textual.textualize.io/) and
 [ledgerkit](https://github.com/ctosullivan/ledgerkit).
+
+---
 
 ## Features
 
@@ -18,38 +23,50 @@ editor built with [Textual](https://textual.textualize.io/) and
 - Transaction block selection and duplication (`Ctrl+T`, `Ctrl+G`)
 - Cleared status toggle — single transaction (3-state cycle) and bulk selection (`Ctrl+R`)
 - Insert today's date at cursor (`Ctrl+D`)
+- Date shifting with `Shift+Up` / `Shift+Down` (cursor-position-aware)
 - Save with date-sort and whitespace re-alignment (`Ctrl+S`)
-- Transaction filter popup (`Ctrl+O`) — **UI stub only; criteria filtering not yet implemented**
+- Undo / Redo (`Ctrl+Z` / `Ctrl+Y`)
 - Command palette (`Ctrl+P`)
+
+### Planned / In Progress
+
+- Transaction filter popup (`Ctrl+O`) — UI stub only; criteria filtering not yet implemented
+- BalanceSidebar — account balance tree (wired up, threaded refresh on save)
+- RegisterPanel — account transaction register (wired up, last 500 rows)
+- Reconciliation mode
+
+---
 
 ## Installation
 
-### From GitHub (recommended while in beta)
+### From PyPI
 
 ```bash
-git clone https://github.com/ctosullivan/PyLedger-editor.git
-cd PyLedger-editor
+pip install ledgerkit-editor
+ledgerkit-editor path/to/my.journal
+```
+
+### Development setup
+
+```bash
+git clone https://github.com/ctosullivan/ledgerkit-editor.git
+cd ledgerkit-editor
 
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 # source .venv/bin/activate   # macOS / Linux
 
 pip install --upgrade pip
-pip install -e vendor/ledgerkit/
+pip install -e ".[dev]"
 
-# Install LedgerKit Editor and its remaining dependencies
-pip install textual==8.2.5 pytest pytest-asyncio
-pip install -e .
+# Run tests
+pytest --tb=short
 
 # Launch
 ledgerkit-editor path/to/my.journal
 ```
 
-### Requirements
-
-- Python 3.8+
-- textual 8.2.5 (installed automatically via `pip install -e .`)
-- ledgerkit 0.1.0 (installed from `vendor/ledgerkit/` — see above)
+---
 
 ## Journal File Resolution
 
@@ -60,15 +77,32 @@ The editor resolves the journal file in this order:
 3. `~/.hledger.journal` default
 4. Interactive prompt on launch (if none of the above resolve)
 
+---
+
 ## Keyboard Shortcuts
 
 See [docs/shortcuts.md](docs/shortcuts.md) for the full reference.
 
+---
+
+## Requirements
+
+- Python 3.9+
+- textual 8.2.5
+- ledgerkit 1.0.0.dev1
+
+---
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and the
-ledgerkit vendor update workflow.
+ledgerkit dependency update workflow.
 
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for planned features and current development status.
+
+---
+
+> This repository was previously named `PyLedger-editor`. GitHub redirects
+> old URLs automatically.

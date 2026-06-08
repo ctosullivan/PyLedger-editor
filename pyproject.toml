@@ -4,24 +4,51 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ledgerkit-editor"
-version = "0.9.5"
-requires-python = ">=3.8"
+version = "1.0.0"
+description = "A keyboard-driven terminal editor for hledger plain-text accounting journals"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Cormac O'Sullivan" }]
+keywords = ["hledger", "ledger", "accounting", "tui", "textual", "plaintext-accounting"]
+requires-python = ">=3.9"
 dependencies = [
     "textual==8.2.5",
-    # ledgerkit is installed from vendor/ledgerkit/ in editable mode (pip install -e vendor/ledgerkit/).
-    # Always use the vendor version. See CONTRIBUTING.md for setup instructions.
-    "ledgerkit==0.2.0",
+    "ledgerkit==1.0.0.dev1",
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Accounting",
+]
+
+[project.urls]
+Homepage = "https://github.com/ctosullivan/ledgerkit-editor"
+"Bug Tracker" = "https://github.com/ctosullivan/ledgerkit-editor/issues"
+Changelog = "https://github.com/ctosullivan/ledgerkit-editor/blob/master/CHANGELOG.md"
 
 [project.scripts]
 ledgerkit-editor = "ledgerkit_editor.app:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.black]
 line-length = 88
-target-version = ["py38"]
+target-version = ["py39"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

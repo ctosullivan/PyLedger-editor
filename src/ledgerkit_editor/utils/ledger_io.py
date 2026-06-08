@@ -9,8 +9,8 @@ Key ledgerkit types used here:
   - ledgerkit.journal_to_text(j)     → str
   - ledgerkit.transaction_to_text(t) → str
 
-Always consult vendor/ledgerkit/dev-docs/api-spec.md before extending this
-module. Never assume the ledgerkit API — read the spec first.
+Always consult the ledgerkit PyPI package source (ledgerkit/models.py, etc.)
+before extending this module. Never assume the ledgerkit API — read the source first.
 """
 
 from __future__ import annotations

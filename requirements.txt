@@ -1,9 +1,6 @@
 colorama==0.4.6
 iniconfig==2.3.0
-# Editable install with no version control (ledger-editor==0.8.2)
--e c:\users\user\dropbox\dev\python\pyledger-editor
--e git+https://github.com/ctosullivan/ledgerkit.git@39fe691c57add9d2f3bf9cc4901bdc7837bc850d#egg=ledgerkit&subdirectory=vendor\ledgerkit
--e git+https://github.com/ctosullivan/ledgerkit.git@39fe691c57add9d2f3bf9cc4901bdc7837bc850d#egg=ledgerkit_editor
+ledgerkit==1.0.0.dev1
 linkify-it-py==2.1.0
 markdown-it-py==4.2.0
 mdit-py-plugins==0.6.1

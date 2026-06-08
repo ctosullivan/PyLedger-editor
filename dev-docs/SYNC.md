@@ -1,7 +1,7 @@
 # Documentation Sync Contract
 
 This file defines what must be kept in sync when code changes.
-It mirrors the approach in `vendor/ledgerkit/dev-docs/SYNC.md`.
+It mirrors the approach used in the ledgerkit project.
 
 ---
 

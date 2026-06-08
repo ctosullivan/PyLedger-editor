@@ -1,10 +1,8 @@
 # ledgerkit API Notes
 
-Authoritative reference: `vendor/ledgerkit/dev-docs/api-spec.md`
-Source models: `vendor/ledgerkit/ledgerkit/models.py`
+Authoritative reference: [ledgerkit PyPI package](https://pypi.org/project/ledgerkit/) source — inspect installed files or the GitHub repo at https://github.com/ctosullivan/ledgerkit.
 
-Installed version: **0.2.0** (Python import: `import ledgerkit`)
-Package directory in repo: `ledgerkit/`.
+Installed version: **1.0.0.dev1** (Python import: `import ledgerkit`)
 
 ### v0.2.0 additions (2026-06-06)
 
@@ -98,7 +96,7 @@ Other notes:
 | `ledgerkit.CheckError` | dataclass | Validation error with check_name + message |
 | `ledgerkit.SourceSpan` | dataclass | Source line range for a parsed transaction |
 | `ledgerkit.balance_from_spec(journal, spec, query)` | `list[ReportSectionResult]` | Structured balance |
-| `ledgerkit.__version__` | `str` | `"0.2.0"` |
+| `ledgerkit.__version__` | `str` | `"1.0.0.dev1"` |
 
 ---
 

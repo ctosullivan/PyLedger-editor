@@ -1,5 +1,4 @@
 # ── Project-specific ──────────────────────────────────────────────────────────
-vendor/
 personal.journal
 tests/fixtures/sandbox.journal
 *.ps1

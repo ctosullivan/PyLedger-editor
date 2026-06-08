@@ -4,8 +4,9 @@
 > See CLAUDE.md §Unauthorised Change Rule.
 
 This file documents the internal APIs exposed by `ledgerkit_editor` modules.
-It does NOT document ledgerkit's own API — see
-`vendor/ledgerkit/dev-docs/api-spec.md` for that.
+It does NOT document ledgerkit's own API — see the
+[ledgerkit PyPI package](https://pypi.org/project/ledgerkit/) source and
+`knowledge_base/ledgerkit_api_notes.md` for that.
 
 ---
 

@@ -13,11 +13,6 @@ import sys
 from pathlib import Path
 from typing import ClassVar
 
-# Ensure vendor/ledgerkit is on sys.path so 'import ledgerkit' resolves correctly.
-_VENDOR = Path(__file__).parent.parent.parent.parent / "vendor" / "ledgerkit"
-if _VENDOR.exists() and str(_VENDOR) not in sys.path:
-    sys.path.insert(0, str(_VENDOR))
-
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.css.query import NoMatches

@@ -319,7 +319,7 @@ class JournalEditor(Widget):
     def on_resize(self, event: object) -> None:
         """Re-seek on resize within the startup window.
 
-        When pyledger-editor is spawned by hledger-ui, Windows emits a console
+        When ledgerkit-editor is spawned by hledger-ui, Windows emits a console
         resize event as control of the terminal is handed over. That resize can
         reset the TextArea scroll position after the initial call_after_refresh
         seek. Re-scheduling the seek here (only while inside the startup window)

@@ -1,39 +1,44 @@
 # CONTEXT.md — Session Working Memory
 
 ## Current Task
-Upgraded vendored ledgerkit from v0.1.0 to v0.2.0 and added comprehensive hledger fixture test coverage.
+
+v1.0.0 release preparation complete. All phases done.
 
 ## Where We Are
-All changes complete. Running full test suite is the next verification step.
+
+All changes applied. Next step for the owner:
+1. Rename GitHub repo from `PyLedger-editor` to `ledgerkit-editor` (Settings → Rename)
+2. Create GitHub Environments `testpypi` (no gate) and `pypi` (required reviewer)
+3. Configure Trusted Publishers on TestPyPI and PyPI (see CONTRIBUTING.md)
+4. Push a `v1.0.0` tag to trigger the publish workflow
 
 ## Decisions In Flight
-None.
 
-## Files Changed This Session
-- `vendor/ledgerkit/` — replaced with v0.2.0 source (mirrored from github.com/ctosullivan/ledgerkit main)
-- `pyproject.toml` — ledgerkit dep bumped from `==0.1.0` to `==0.2.0`
-- `requirements.txt` — regenerated
-- `tests/fixtures/comprehensive-hledger-test.journal` — `include` path changed from absolute to relative (`include comprehensive-hledger-test-commodities.journal`)
-- `src/ledgerkit_editor/widgets/transaction_table.py` — `action_save` now imports `ParseWarning` and shows it at `"information"` severity (not `"warning"`)
-- `tests/test_comprehensive_hledger.py` — NEW: 36 tests across 8 classes
-- `CHANGELOG.md` — new [Unreleased] entry
-- `knowledge_base/ledgerkit_api_notes.md` — version bumped; v0.2.0 additions section added; Transaction/Posting dataclass docs updated
+- `ledgerkit` pinned to `==1.0.0.dev1` — dev release; bump to stable when ledgerkit
+  cuts a non-dev 1.0.0
+- `textual` pinned to `==8.2.5` — do not upgrade without checking `LedgerTextArea._build_highlight_map`
+  (private Textual 8.2.5 API)
 
-## What's New in ledgerkit v0.2.0 (key editor-facing facts)
-- `Transaction.date2: datetime.date | None` — secondary date from `DATE=DATE2` syntax
-- `Posting.cost_raw: str | None` — `@ AMOUNT` and `@@ AMOUNT` cost annotations; lot `{}` annotations are stripped but do NOT populate `cost_raw`
-- `ParseWarning` (subclass of `ParseError`) in `ledgerkit.parser` — issued for `~` and `=` rule blocks that are skipped; journal still loads fully
-- New amount formats: `$-300`, `1 000 000 JPY`, `1E3 EUR`, `3 "Chocolate Frogs"`, cost annotations
-- New directives: `Y YEAR`, `D AMOUNT`, `apply account / end apply account`
+## Files Currently Relevant
+
+- `pyproject.toml` — version 1.0.0, requires-python >=3.9, ledgerkit==1.0.0.dev1
+- `.github/workflows/ci.yml` — CI on push/PR to master
+- `.github/workflows/publish.yml` — publish on v*.*.* tag push
+- `CHANGELOG.md` — restructured to Keep-a-Changelog format
+- `knowledge_base/ledgerkit_api_notes.md` — API notes updated for ledgerkit 1.0.0.dev1
+
+## Blockers / Open Questions
+
+None for code. Manual owner actions required before PyPI publish (see "Where We Are").
 
 ## What NOT To Revisit
-- `vendor/ledgerkit` remote URL was wrong (pointed to editor repo); fixed to `https://github.com/ctosullivan/ledgerkit.git`.
-- `vendor/ledgerkit` is a plain directory, not a git submodule — the CONTRIBUTING.md workflow (`git -C vendor/ledgerkit fetch`) only works after fixing the remote.
-- `ledgerkit.load()` handles `~`/`=` blocks gracefully in v0.2.0 without raising (26 transactions loaded from comprehensive fixture).
+
+- Vendor directory: deleted. ledgerkit is a normal PyPI dep from here on.
+- `requirements-dev.txt`: deleted. Dev deps are in `[project.optional-dependencies] dev`.
+- Python floor: confirmed >=3.9 (Textual 8.x requires it). Do not lower.
+- Pre-existing test failure: `test_file_resolver.py::TestResolveJournalFile::test_returns_none_when_nothing_found`
+  fails because `~/.hledger.journal` exists on this machine. Not a regression.
 
 ## Recent Git State
-39fe691 fix: correct commodity formatting on save
-d2026da feat: migrate to ledgerkit v0.1.0, rename to ledgerkit-editor
-5da045d feat: add --line=N and --theme=THEME CLI arguments; bump to v0.9.4
-d6b9585 feat: cursor-position-aware date shifting with Shift+Up/Down; bump to v0.9.3
-fad5fa4 fix: preserve directives/comments across filter-view cycle; bump to v0.9.2
+
+(run `git log --oneline -5` to refresh)

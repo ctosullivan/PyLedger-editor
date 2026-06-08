@@ -1,16 +1,17 @@
-# Contributing to LedgerKit Editor
+# Contributing to ledgerkit-editor
 
 ## Development Setup
 
 ```bash
+git clone https://github.com/ctosullivan/ledgerkit-editor.git
+cd ledgerkit-editor
+
 python -m venv .venv
 .venv\Scripts\activate       # Windows
 # source .venv/bin/activate  # macOS / Linux
-pip install --upgrade pip
-pip install textual==8.2.5 pytest pytest-asyncio
 
-# Install ledgerkit from the vendor snapshot (editable so imports resolve correctly).
-pip install -e vendor/ledgerkit/
+pip install --upgrade pip
+pip install -e ".[dev]"
 ```
 
 Run the test suite:
@@ -24,52 +25,17 @@ Launch the editor (requires a journal file):
 ```bash
 python -m ledgerkit_editor path/to/my.journal
 # or
-ledgerkit-editor path/to/my.journal   # if installed via pip install -e .
+ledgerkit-editor path/to/my.journal
 ```
 
 ---
 
-## Updating ledgerkit (Vendor Dependency)
+## Updating ledgerkit
 
-ledgerkit is updated frequently. Follow this workflow precisely when a new
-version is available.
-
-```bash
-# 1. Remove write-lock from vendor tree (Windows)
-attrib -R /S /D vendor\ledgerkit\*
-
-# (macOS / Linux: chmod -R u+w vendor/ledgerkit)
-
-# 2. Fetch the new tag (replace X.Y.Z with the new version)
-git -C vendor/ledgerkit fetch --depth=1 origin refs/tags/vX.Y.Z
-git -C vendor/ledgerkit checkout FETCH_HEAD
-
-# 3. Update pip dependency and re-pin
-pip install -e vendor/ledgerkit/
-pip freeze > requirements.txt
-# Also update pyproject.toml dependencies.ledgerkit to ==X.Y.Z
-
-# 4. Re-apply write-lock
-attrib +R /S /D vendor\ledgerkit\*
-
-# (macOS / Linux: chmod -R a-w vendor/ledgerkit)
-
-# 5. Compare CHANGELOG and API spec for breaking changes
-#    Open and compare:
-#      vendor/ledgerkit/CHANGELOG.md
-#      vendor/ledgerkit/dev-docs/api-spec.md
-#    Update knowledge_base/ledgerkit_api_notes.md to reflect any API changes.
-
-# 6. Run the full test suite to surface any breaking changes
-pytest --tb=short
-```
-
-After updating, commit the vendor snapshot and updated requirements:
-
-```bash
-git add vendor/ledgerkit requirements.txt pyproject.toml knowledge_base/ledgerkit_api_notes.md
-git commit -m "chore: update ledgerkit to vX.Y.Z"
-```
+`ledgerkit` is a normal PyPI dependency. To update, change the version pin in
+`pyproject.toml` and run `pip install -e .`. Review the ledgerkit
+[changelog](https://github.com/ctosullivan/ledgerkit/blob/master/CHANGELOG.md)
+and `knowledge_base/ledgerkit_api_notes.md` for breaking changes before bumping.
 
 ---
 

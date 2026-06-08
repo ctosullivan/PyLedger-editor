@@ -6,7 +6,7 @@ Resolution priority (matching ledgerkit cli.py behaviour):
   3. ~/.hledger.journal default fallback
   4. None — caller must prompt the user
 
-See also: vendor/ledgerkit/ledgerkit/cli.py for the reference implementation.
+See also: ledgerkit/cli.py in the ledgerkit PyPI package for the reference implementation.
 """
 
 from __future__ import annotations
