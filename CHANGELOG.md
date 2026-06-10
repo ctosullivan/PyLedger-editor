@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-06-10
+
 ### Fixed
 - `.tcss` theme file missing from pip-installed wheel; added `[tool.setuptools.package-data]` to `pyproject.toml` so `ledgerkit_editor/**/*.tcss` is included in the distribution.
 
