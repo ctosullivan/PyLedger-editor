@@ -1,0 +1,96 @@
+; UAT fixture for the 1.0.2 bug-fix batch.
+; See uat-testing/1.0.2-bug-fixes-checklist.md for how each block is used.
+
+P 2026-9-1 EUR 1.08 USD
+
+2026-9-1 Opening balances
+    assets:bank:checking    1000 EUR
+    equity:opening-balances
+
+2024-01-15 Groceries
+    expenses:food    42.50 EUR
+    assets:bank:checking
+
+2024-02-01 Filler transaction 1
+    expenses:misc    1.00 EUR
+    assets:bank:checking
+
+2024-02-02 Filler transaction 2
+    expenses:misc    2.00 EUR
+    assets:bank:checking
+
+2024-02-03 Filler transaction 3
+    expenses:misc    3.00 EUR
+    assets:bank:checking
+
+2024-02-04 Filler transaction 4
+    expenses:misc    4.00 EUR
+    assets:bank:checking
+
+2024-02-05 Filler transaction 5
+    expenses:misc    5.00 EUR
+    assets:bank:checking
+
+2024-02-06 Filler transaction 6
+    expenses:misc    6.00 EUR
+    assets:bank:checking
+
+2024-02-07 Filler transaction 7
+    expenses:misc    7.00 EUR
+    assets:bank:checking
+
+2024-02-08 Filler transaction 8
+    expenses:misc    8.00 EUR
+    assets:bank:checking
+
+2024-02-09 Filler transaction 9
+    expenses:misc    9.00 EUR
+    assets:bank:checking
+
+2024-02-10 Filler transaction 10
+    expenses:misc    10.00 EUR
+    assets:bank:checking
+
+2024-02-11 Filler transaction 11
+    expenses:misc    11.00 EUR
+    assets:bank:checking
+
+2024-02-12 Filler transaction 12
+    expenses:misc    12.00 EUR
+    assets:bank:checking
+
+2024-02-13 Filler transaction 13
+    expenses:misc    13.00 EUR
+    assets:bank:checking
+
+2024-02-14 Filler transaction 14
+    expenses:misc    14.00 EUR
+    assets:bank:checking
+
+2024-02-15 Filler transaction 15
+    expenses:misc    15.00 EUR
+    assets:bank:checking
+
+2024-02-16 Filler transaction 16
+    expenses:misc    16.00 EUR
+    assets:bank:checking
+
+2024-02-17 Filler transaction 17
+    expenses:misc    17.00 EUR
+    assets:bank:checking
+
+2024-02-18 Filler transaction 18
+    expenses:misc    18.00 EUR
+    assets:bank:checking
+
+2024-02-19 Filler transaction 19
+    expenses:misc    19.00 EUR
+    assets:bank:checking
+
+2024-02-20 Filler transaction 20
+    expenses:misc    20.00 EUR
+    assets:bank:checking
+
+2024-03-01 Groceries
+    expenses:food    38.00 EUR
+    assets:bank:checking
