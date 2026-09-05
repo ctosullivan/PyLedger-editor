@@ -96,3 +96,43 @@ Conflicts are documented here as discovered during implementation.
 pytest-asyncio integrates cleanly. ledgerkit itself uses unittest, but the
 editor's Textual widget tests would be significantly more verbose with unittest
 and no native async support.
+
+---
+
+## Shift+Up/Down "Expand-on-Shift" for Unpadded Dates (2026-09-05)
+
+**Decision**: An unpadded date under the cursor (e.g. `2026-9-1`) is
+rewritten to zero-padded canonical form (`2026-09-01`) as part of the very
+same `Shift+Up`/`Shift+Down` keypress that shifts it — not as a separate
+step, and not silently on every keystroke while typing.
+
+**Rationale**: The alternative — leaving the date unpadded and only shifting
+the underlying value — would require the highlighter and every other
+consumer of `_TXN_HEADER_RE`/`_XACT_HEADER_RE` to support variable-width
+dates indefinitely, and would leave the buffer in a state the user didn't
+type. Expanding at the moment of the first deliberate edit (a Shift+Up/Down
+press) is the smallest change that fixes the reported bug: the editor only
+ever rewrites text the user has explicitly asked it to change.
+
+**Consequence**: Typing `2026-9-1` and never pressing Shift+Up/Down leaves it
+unpadded in the buffer — this is intentional; the editor does not
+auto-format dates you haven't touched. See `_normalize_date_str` and
+`_shift_date_by` in `widgets/transaction_table.py`.
+
+---
+
+## Symmetric Scroll Margin in LedgerTextArea (2026-09-05)
+
+**Decision**: `LedgerTextArea.scroll_cursor_visible()`'s context margin is
+`top=4, bottom=4` (previously `bottom=4` only).
+
+**Rationale**: The bottom-only margin was an oversight, not a deliberate
+choice — no prior entry here documented asymmetry as intentional, and it
+produced a reported bug: moving the cursor upward (`Shift+PgUp`, previous
+search match) scrolled the cursor flush against the top edge of the
+viewport with zero reserved context, while downward navigation always kept
+4 lines of lookahead. Since `TextArea._watch_selection()` calls this method
+on every `move_cursor()`, whatever margin is set here applies uniformly to
+every navigation action in both directions — there's no way to special-case
+one action without special-casing all of them, so a single symmetric value
+is the simplest fix.

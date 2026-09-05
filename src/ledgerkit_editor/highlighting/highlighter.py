@@ -25,7 +25,9 @@ __all__ = ["LedgerHighlighter", "LineInfo", "LineKind"]
 #          named field so the highlighter can apply a distinct token to each.
 #
 # Group breakdown:
-#   (1) \d{4}[-/]\d{2}[-/]\d{2} — ISO date (YYYY-MM-DD or YYYY/MM/DD), required
+#   (1) \d{4}[-/]\d{1,2}[-/]\d{1,2} — ISO-ish date (YYYY-MM-DD or YYYY/MM/DD),
+#       required; month/day accept 1 or 2 digits so unpadded dates like
+#       "2026-9-1" are still recognised as a transaction header
 #   (2) [*!]                     — status flag: * = cleared, ! = pending;
 #                                  absent (None) means uncleared
 #   (3) [^)]*                    — code text inside parens (parens consumed too),
@@ -39,9 +41,12 @@ __all__ = ["LedgerHighlighter", "LineInfo", "LineKind"]
 #   - Flag without code: "2024-01-01 * Payee" — group 3 is None
 #   - Code without flag: "2024-01-01 (INV-42) Payee" — group 2 is None
 #   - Empty payee after flag: "2024-01-01 *" — group 4 is "" after strip
+#   - Unpadded month/day, e.g. "2026-9-1 Payee" or "2026-9-01 Payee", matches;
+#     downstream date-shift logic (transaction_table.py) normalises to
+#     zero-padded form on first Shift+Up/Down rather than here
 #   - Posting lines (leading whitespace) are never passed here; caller guards
 _XACT_HEADER_RE = re.compile(
-    r"^(\d{4}[-/]\d{2}[-/]\d{2})"  # group 1: date
+    r"^(\d{4}[-/]\d{1,2}[-/]\d{1,2})"  # group 1: date
     r"\s*([*!])?"                    # group 2: optional flag
     r"\s*(\([^)]*\))?"              # group 3: optional (CODE) including parens
     r"\s*([^;]*)"                   # group 4: payee (everything before ';')

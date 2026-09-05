@@ -673,3 +673,164 @@ class TestInsertToday:
             assert any(today in l for l in new_lines), (
                 f"Today's date {today!r} not found in text"
             )
+
+
+# ---------------------------------------------------------------------------
+# Shift+Up/Down date shifting — transaction headers and P price directives,
+# including unpadded (no-leading-zero) dates.
+# ---------------------------------------------------------------------------
+
+PRICE_DIRECTIVE_JOURNAL = (
+    "P 2026-9-1 EUR 1.08 USD\n"
+    "\n"
+    "2026-9-1 Opening balances\n"
+    "    assets:bank:checking    100 EUR\n"
+    "    equity:opening-balances\n"
+)
+
+
+class TestDateShiftAction:
+    """action_date_shift_up/down (Shift+Up/Down) on header and P directive lines."""
+
+    async def test_shift_header_month_padded(self, tmp_path: Path) -> None:
+        """Shift+Up on an already-padded header month field increments it."""
+        journal = tmp_path / "shift.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            textarea.move_cursor((0, 5))  # month digit of "2024-01-10 ..."
+            editor.action_date_shift_up()
+            await pilot.pause()
+
+            assert textarea.text.splitlines()[0].startswith("2024-02-10")
+
+    async def test_shift_header_unpadded_date_expands_and_shifts(
+        self, tmp_path: Path
+    ) -> None:
+        """Shift+Up on an unpadded header date (e.g. 2026-9-1) both expands to
+        zero-padded form and applies the shift in a single press."""
+        journal = tmp_path / "shift.journal"
+        journal.write_text(PRICE_DIRECTIVE_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            header_row = next(
+                i for i, l in enumerate(textarea.text.splitlines())
+                if l.startswith("2026-9-1")
+            )
+            textarea.move_cursor((header_row, 5))  # month digit "9"
+            editor.action_date_shift_up()
+            await pilot.pause()
+
+            new_line = textarea.text.splitlines()[header_row]
+            assert new_line.startswith("2026-10-01 "), new_line
+
+    async def test_shift_header_unpadded_day(self, tmp_path: Path) -> None:
+        """Shift+Down on the unpadded day field decrements just the day."""
+        journal = tmp_path / "shift.journal"
+        journal.write_text(PRICE_DIRECTIVE_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            header_row = next(
+                i for i, l in enumerate(textarea.text.splitlines())
+                if l.startswith("2026-9-1")
+            )
+            textarea.move_cursor((header_row, 7))  # day digit "1"
+            editor.action_date_shift_down()
+            await pilot.pause()
+
+            new_line = textarea.text.splitlines()[header_row]
+            # Day 1 - 1 = underflow into the previous month (August has 31 days).
+            assert new_line.startswith("2026-08-31 "), new_line
+
+    async def test_shift_price_directive_month(self, tmp_path: Path) -> None:
+        """Shift+Up on a P directive's (padded) month field shifts only the date."""
+        journal = tmp_path / "price.journal"
+        journal.write_text(
+            "P 2026-09-01 EUR 1.08 USD\n\n" + TWO_TXN_JOURNAL,
+            encoding="utf-8",
+        )
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            textarea.move_cursor((0, 7))  # month digit "9" of "P 2026-09-01 ..."
+            editor.action_date_shift_up()
+            await pilot.pause()
+
+            new_line = textarea.text.splitlines()[0]
+            assert new_line == "P 2026-10-01 EUR 1.08 USD"
+
+    async def test_shift_price_directive_unpadded_expands_and_shifts(
+        self, tmp_path: Path
+    ) -> None:
+        """Shift+Up on an unpadded P directive date expands and shifts it,
+        leaving the commodity/rate portion of the line untouched."""
+        journal = tmp_path / "price.journal"
+        journal.write_text(PRICE_DIRECTIVE_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            textarea.move_cursor((0, 7))  # month digit "9" of "P 2026-9-1 ..."
+            editor.action_date_shift_up()
+            await pilot.pause()
+
+            new_line = textarea.text.splitlines()[0]
+            assert new_line == "P 2026-10-01 EUR 1.08 USD"
+
+    async def test_shift_falls_through_on_posting_line(self, tmp_path: Path) -> None:
+        """Shift+Up on a posting line (no date) falls through to selection,
+        leaving the text unchanged."""
+        journal = tmp_path / "shift.journal"
+        journal.write_text(TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            original_text = textarea.text
+            posting_row = next(
+                i for i, l in enumerate(textarea.text.splitlines())
+                if l and l[0].isspace()
+            )
+            textarea.move_cursor((posting_row, 4))
+            editor.action_date_shift_up()
+            await pilot.pause()
+
+            assert textarea.text == original_text
+
+    async def test_shift_falls_through_on_non_price_directive(
+        self, tmp_path: Path
+    ) -> None:
+        """Shift+Up on a non-P directive (e.g. D) falls through unchanged."""
+        journal = tmp_path / "shift.journal"
+        journal.write_text("D 1000.00 EUR\n\n" + TWO_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+
+            original_text = textarea.text
+            textarea.move_cursor((0, 4))
+            editor.action_date_shift_up()
+            await pilot.pause()
+
+            assert textarea.text == original_text

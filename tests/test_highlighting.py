@@ -99,6 +99,16 @@ class TestScanner:
         assert infos[0].cleared is False
         assert infos[0].pending is False
 
+    def test_unpadded_month_and_day_header_classified(self) -> None:
+        """A date without leading zeros (e.g. 2026-9-1) must still be
+        recognised as a transaction header, not fall through to UNKNOWN."""
+        infos = _scan("2026-9-1 Opening balances")
+        assert infos[0].kind == LineKind.XACT_HEADER
+
+    def test_unpadded_month_only_header_classified(self) -> None:
+        infos = _scan("2026-9-15 Opening balances")
+        assert infos[0].kind == LineKind.XACT_HEADER
+
     def test_posting_classified(self) -> None:
         text = f"{CLEARED_HEADER}\n{POSTING_LINE}"
         infos = _scan(text)

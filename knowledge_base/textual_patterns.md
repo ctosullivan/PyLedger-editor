@@ -98,6 +98,34 @@ See Textual docs for `pilot.press()`, `pilot.click()`, `pilot.pause()`.
 
 ---
 
+## Symmetric Scroll-Into-View Margin
+
+```python
+def scroll_cursor_visible(self, center: bool = False, animate: bool = False):
+    ...
+    return self.scroll_to_region(
+        Region(x, y, width=3, height=1),
+        spacing=Spacing(top=4, right=self.gutter_width, bottom=4),
+        animate=animate,
+        force=True,
+        center=center,
+    )
+```
+
+`TextArea._watch_selection()` (Textual 8.2.5) calls `scroll_cursor_visible()`
+on every `move_cursor()`, and dispatches polymorphically — a subclass
+override runs even though the call originates in the base class. Because of
+that, **whatever `Spacing` this override uses applies to every cursor-moving
+action in both directions**, not just the one you were thinking about when
+you wrote it. A `bottom=`-only margin (added to keep downward navigation
+from scrolling flush to the last row) silently leaves upward navigation with
+no margin at all — there's no way to special-case one direction without
+special-casing every caller of `move_cursor()`. Set `top=` and `bottom=` to
+matching values unless you have a specific reason for asymmetry, and note
+that reason here if you do.
+
+---
+
 ## Layer Overlay (Popups)
 
 ```python
