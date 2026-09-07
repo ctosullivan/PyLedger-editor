@@ -1,17 +1,19 @@
-"""View-filter engine for JournalEditor (Ctrl+L cleared/uncleared cycle).
+"""View-filter engine for JournalEditor: Ctrl+L cleared/uncleared cycle and
+the Ctrl+O criteria filter (Phase 3 of the next-release plan).
 
-Split out of transaction_table.py (Phase 2 of the next-release plan — see
-planning/next-release-phase-plan.md) once that module passed the Module Size
-Rule threshold.
-
-Also the engine the Transaction Filter feature (Ctrl+O, Phase 3) is planned
-to reuse: parse-hide-merge-restore is the same mechanism regardless of
-whether visibility is decided by cleared state or by a criteria predicate.
-_apply_view_filter's cleared/uncleared branch is where that generalisation
-will happen — see the class docstring below.
+Split out of transaction_table.py (Phase 2) once that module passed the
+Module Size Rule threshold. Both Ctrl+L and Ctrl+O share the same
+parse-hide-merge-restore engine — only how "which transactions are visible"
+is decided differs: Ctrl+L uses the fixed cleared/uncleared check,
+Ctrl+O uses an arbitrary predicate built by
+ledgerkit_editor.utils.query_match.build_transaction_predicate(). The two
+are mutually exclusive: activating either one first exits the other (see
+apply_criteria_filter / action_cycle_view_filter).
 """
 
 from __future__ import annotations
+
+from typing import Callable
 
 from ledgerkit_editor.widgets.ledger_textarea import LedgerTextArea
 from ledgerkit_editor.widgets.view_filter_bar import ViewFilterBar
@@ -20,7 +22,7 @@ __all__ = ["ViewFilterMixin"]
 
 
 class ViewFilterMixin:
-    """JournalEditor mixin providing the Ctrl+L view-filter cycle.
+    """JournalEditor mixin providing the Ctrl+L and Ctrl+O view filters.
 
     Expects "#journal_textarea" (a LedgerTextArea) and a ViewFilterBar child,
     exactly as JournalEditor.compose() provides. Also expects the host to
@@ -28,17 +30,30 @@ class ViewFilterMixin:
     since mixins here don't own __init__ — see date_shift.DateShiftMixin for
     the same convention):
 
-        self._view_filter_mode: int = 0          # 0=All, 1=Cleared, 2=Unreconciled
+        self._view_filter_mode: int = 0          # 0=All, nonzero=filtered
         self._filter_journal: object | None = None
         self._filter_visible_indices: list[int] = []
         self._filter_non_txn_blocks: list[str] = []
+        self._active_predicate: Callable[[object], bool] | None = None
+        # ^ Ctrl+O sets this; when set, it overrides the cleared/uncleared
+        #   check for _view_filter_mode != 0 (see _apply_view_filter). None
+        #   means "no criteria filter active" — Ctrl+L's fixed 3-mode cycle
+        #   applies as before.
     """
 
     def action_cycle_view_filter(self) -> None:
-        """Cycle editor view: All → Cleared → Unreconciled → All (Ctrl+L)."""
+        """Cycle editor view: All → Cleared → Unreconciled → All (Ctrl+L).
+
+        If a Ctrl+O criteria filter is active, this first exits it (restoring
+        the full journal) and starts a fresh Ctrl+L cycle — the two filter
+        mechanisms are mutually exclusive.
+        """
         import ledgerkit  # noqa: PLC0415
 
         textarea = self.query_one("#journal_textarea", LedgerTextArea)
+
+        if self._active_predicate is not None:
+            self._exit_active_filter(textarea)
 
         if self._view_filter_mode == 0:
             # Entering a filtered view — snapshot the full journal and the
@@ -53,6 +68,60 @@ class ViewFilterMixin:
             self._merge_filtered_edits(textarea)
 
         self._view_filter_mode = (self._view_filter_mode + 1) % 3
+        self._apply_view_filter(textarea)
+
+    def apply_criteria_filter(self, predicate: Callable[[object], bool]) -> None:
+        """Enter (or replace) a Ctrl+O criteria-filter view using predicate.
+
+        If a Ctrl+L cleared/uncleared filter is active, or a different
+        criteria filter was already active, this first exits it (restoring
+        the full journal, merging any edits) before applying the new one.
+
+        Args:
+            predicate: called with each ledgerkit Transaction; True keeps it
+                visible. Typically built by
+                ledgerkit_editor.utils.query_match.build_transaction_predicate().
+        """
+        import ledgerkit  # noqa: PLC0415
+
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+
+        if self._view_filter_mode != 0 or self._active_predicate is not None:
+            self._exit_active_filter(textarea)
+
+        self._filter_journal, _ = ledgerkit.parse_string_lenient(textarea.text)
+        from ledgerkit_editor.utils.ledger_io import split_journal_segments  # noqa: PLC0415
+        self._filter_non_txn_blocks, _ = split_journal_segments(
+            textarea.text, self._filter_journal.transactions  # type: ignore[union-attr]
+        )
+        self._active_predicate = predicate
+        # Any nonzero value marks "a filter is showing a subset" for
+        # action_save's merge-before-save check; the actual visibility rule
+        # for mode != 0 is _active_predicate when set, not this number.
+        self._view_filter_mode = 1
+        self._apply_view_filter(textarea)
+
+    def clear_criteria_filter(self) -> None:
+        """Exit an active Ctrl+O criteria filter, restoring the full journal.
+
+        No-op if no criteria filter is currently active.
+        """
+        if self._active_predicate is None:
+            return
+        textarea = self.query_one("#journal_textarea", LedgerTextArea)
+        self._exit_active_filter(textarea)
+
+    def _exit_active_filter(self, textarea: LedgerTextArea) -> None:
+        """Merge edits and restore the full journal, clearing all filter state.
+
+        Shared by action_cycle_view_filter and apply_criteria_filter/
+        clear_criteria_filter whenever either mechanism needs to fully exit
+        whatever filter (of either kind) is currently active before doing
+        anything else.
+        """
+        self._merge_filtered_edits(textarea)
+        self._active_predicate = None
+        self._view_filter_mode = 0
         self._apply_view_filter(textarea)
 
     def _apply_view_filter(self, textarea: LedgerTextArea) -> None:
@@ -90,11 +159,17 @@ class ViewFilterMixin:
         else:
             if journal is None:
                 return
-            want_cleared = self._view_filter_mode == 1
-            visible: list[tuple[int, object]] = [
-                (i, tx) for i, tx in enumerate(journal.transactions)
-                if (tx.cleared if want_cleared else not tx.cleared)  # type: ignore[union-attr]
-            ]
+            if self._active_predicate is not None:
+                visible: list[tuple[int, object]] = [
+                    (i, tx) for i, tx in enumerate(journal.transactions)
+                    if self._active_predicate(tx)
+                ]
+            else:
+                want_cleared = self._view_filter_mode == 1
+                visible = [
+                    (i, tx) for i, tx in enumerate(journal.transactions)
+                    if (tx.cleared if want_cleared else not tx.cleared)  # type: ignore[union-attr]
+                ]
             self._filter_visible_indices = [i for i, _ in visible]
             parts = [ledgerkit.transaction_to_text(tx) for _, tx in visible]
             filtered_text = "\n".join(parts)
@@ -133,6 +208,10 @@ class ViewFilterMixin:
     def _update_filter_bar(self) -> None:
         """Refresh the ViewFilterBar label after a filter change."""
         try:
-            self.query_one(ViewFilterBar).set_mode(self._view_filter_mode)
+            bar = self.query_one(ViewFilterBar)
+            if self._active_predicate is not None:
+                bar.set_label("View: Filtered (Ctrl+O)")
+            else:
+                bar.set_mode(self._view_filter_mode)
         except Exception:  # noqa: BLE001
             pass

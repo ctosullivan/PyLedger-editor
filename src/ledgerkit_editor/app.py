@@ -144,8 +144,24 @@ class LedgerApp(App[None]):
         """Update the file-path bar with the modified indicator."""
         self._update_file_path_bar(modified=event.modified)
 
+    def on_filter_popup_filter_applied(self, event: FilterPopup.FilterApplied) -> None:
+        """Apply the popup's validated predicate to JournalEditor (Ctrl+O).
+
+        FilterPopup is mounted as a sibling of JournalEditor (both direct
+        children of the Screen, via self.mount() below), not a child of it —
+        its messages bubble to this App, not to JournalEditor — so this
+        handler lives here rather than on JournalEditor itself.
+        """
+        self.query_one(JournalEditor).apply_criteria_filter(event.predicate)
+        self.notify("Filter applied", severity="information")
+
+    def on_filter_popup_filter_cleared(self, event: FilterPopup.FilterCleared) -> None:
+        """Clear the active Ctrl+O criteria filter, restoring the full journal."""
+        self.query_one(JournalEditor).clear_criteria_filter()
+        self.notify("Filter cleared", severity="information")
+
     def action_toggle_filter(self) -> None:
-        """Open or close the transaction filter popup (Ctrl+Shift+P)."""
+        """Open or close the transaction filter popup (Ctrl+O)."""
         existing = self.query(FilterPopup)
         if existing:
             existing.first().remove()

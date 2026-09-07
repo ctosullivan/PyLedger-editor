@@ -72,12 +72,14 @@ These features are not planned to return unless explicitly requested.
 
 ### Milestone A — Transaction Filter (Ctrl+O)
 
-The `FilterPopup` is a UI stub. `apply_filter()` is unimplemented.
+Implemented in Phase 3 of `planning/next-release-phase-plan.md`. Checklist
+items below are done and tested; whether this milestone as a whole ships as
+part of a `1.1.0` release is a separate decision — see that plan.
 
-- [ ] Assemble `ledgerkit.Query` from date-from, date-to, account, payee fields
-- [ ] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
-- [ ] Apply filter: show only matching transactions in the editor
-- [ ] Clear filter restores full journal
+- [x] Assemble `ledgerkit.Query` from date-from, date-to, account, payee fields
+- [x] Smart date parsing: "last month", "ytd", "q1", ISO 8601, relative offsets
+- [x] Apply filter: show only matching transactions in the editor
+- [x] Clear filter restores full journal
 
 ### Milestone B — Autocomplete & Templates
 

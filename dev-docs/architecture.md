@@ -31,20 +31,28 @@ src/ledgerkit_editor/
 │   ├── transaction_blocks.py  — TransactionBlocksMixin: Ctrl+T (select/
 │   │                            extend block), Ctrl+G (duplicate to end),
 │   │                            Ctrl+R (single/bulk cleared toggle)
-│   ├── view_filter.py         — ViewFilterMixin: Ctrl+L cleared/uncleared
-│   │                            view-cycle engine (parse → hide → merge
-│   │                            edits back → restore on exit)
-│   ├── view_filter_bar.py     — ViewFilterBar: 1-row status bar showing the
-│   │                            active Ctrl+L mode
+│   ├── view_filter.py         — ViewFilterMixin: shared parse → hide → merge
+│   │                            edits back → restore engine for BOTH Ctrl+L
+│   │                            (fixed cleared/uncleared cycle) and Ctrl+O
+│   │                            (arbitrary predicate); the two are mutually
+│   │                            exclusive — apply_criteria_filter() /
+│   │                            action_cycle_view_filter() each exit the
+│   │                            other before taking over
+│   ├── view_filter_bar.py     — ViewFilterBar: 1-row status bar showing
+│   │                            whichever of Ctrl+L/Ctrl+O is active
 │   ├── ledger_textarea.py     — LedgerTextArea: TextArea subclass wiring in
 │   │                            LedgerHighlighter syntax highlighting and
 │   │                            search-match highlighting
 │   ├── search_bar.py          — SearchBar: Ctrl+F incremental search bar,
 │   │                            match highlighting, Ctrl+C copies the match
-│   └── filter_popup.py        — FilterPopup: overlay triggered by Ctrl+O
-│                                 (UI stub — criteria filtering not yet wired
-│                                 up; see planning/next-release-phase-plan.md
-│                                 Phase 3)
+│   └── filter_popup.py        — FilterPopup: Ctrl+O overlay; builds a
+│                                 validated predicate (smart dates via
+│                                 utils/date_parser, account/payee via
+│                                 utils/query_match) and posts FilterApplied/
+│                                 FilterCleared — handled by LedgerApp
+│                                 (app.py), not JournalEditor, since
+│                                 FilterPopup is a sibling in the DOM, not a
+│                                 child (messages bubble to the App)
 ├── highlighting/
 │   ├── highlighter.py         — LedgerHighlighter: pure-Python, no-Textual-
 │   │                            imports regex-based syntax highlighter
@@ -59,7 +67,16 @@ src/ledgerkit_editor/
 ├── commands/__init__.py        — Command + CommandHistory (Layer 2 undo/redo stack)
 │                                 and command palette provider stubs
 └── utils/
-    ├── date_parser.py          — Smart date string → datetime.date
+    ├── date_parser.py          — Smart date string → datetime.date; ISO 8601,
+    │                             named periods, quarters, and relative
+    │                             offsets ("-7d", "+1m", "+2w", "-1y")
+    ├── query_match.py          — Local reimplementation of ledgerkit's
+    │                             substring-or-regex Query matching
+    │                             convention (its own version is private,
+    │                             not exported — see the module docstring);
+    │                             build_transaction_predicate() is what
+    │                             FilterPopup ultimately hands to
+    │                             ViewFilterMixin.apply_criteria_filter()
     ├── ledger_io.py            — Thin wrappers over ledgerkit.load()/journal_to_text();
     │                             align_posting_amounts() (column-52 amount formatting);
     │                             split_journal_segments() (directive/comment preservation)

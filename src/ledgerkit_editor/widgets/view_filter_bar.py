@@ -1,8 +1,11 @@
 """View filter status bar for JournalEditor.
 
 Always visible at the top of the editor pane. Shows the active transaction
-filter (All / Cleared / Unreconciled). Ctrl+L (handled by JournalEditor)
-cycles the mode; this widget only displays the current state.
+filter — either the fixed All/Cleared/Unreconciled cycle (Ctrl+L, via
+set_mode) or an arbitrary label for the Ctrl+O criteria filter (via
+set_label, since that one isn't one of the three fixed modes). This widget
+only displays the current state; JournalEditor (widgets/view_filter.py)
+decides which of Ctrl+L/Ctrl+O is active.
 """
 
 from __future__ import annotations
@@ -40,6 +43,11 @@ class ViewFilterBar(Widget):
         yield Static(_LABELS[0], id="filter-label")
 
     def set_mode(self, mode: int) -> None:
-        """Update the displayed label for the given filter mode."""
+        """Update the displayed label for the given Ctrl+L filter mode."""
         self.current_mode = mode
         self.query_one("#filter-label", Static).update(_LABELS.get(mode, _LABELS[0]))
+
+    def set_label(self, text: str) -> None:
+        """Set an arbitrary label directly — used by the Ctrl+O criteria
+        filter, which isn't one of the three fixed Ctrl+L modes."""
+        self.query_one("#filter-label", Static).update(text)

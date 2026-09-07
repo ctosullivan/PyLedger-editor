@@ -5,7 +5,7 @@
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+S` | Save: merge any active filter view, sort transactions by date, re-align posting amounts to column 52 (emacs ledger-mode style), then write (validation errors shown as warnings, do not block save) |
-| `Ctrl+O` | Open / close transaction filter popup |
+| `Ctrl+O` | Open / close the transaction filter popup — see [Transaction Filter (Ctrl+O)](#transaction-filter-ctrlo) below |
 
 ## Search
 
@@ -32,6 +32,25 @@ The view filter changes what the editor shows without hiding any data from disk:
 - **Unreconciled only**: shows only transactions with no `*` flag. Same edit-and-merge behaviour.
 
 `Ctrl+S` while in a filtered view merges edits back and saves the **complete** journal (all transactions, not just the visible ones), then returns the editor to All mode.
+
+## Transaction Filter (Ctrl+O)
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+O` | Open / close the filter popup. Closing it (a second `Ctrl+O`, or `Escape`) leaves any already-applied filter active — it only dismisses the popup, not the filter. |
+| `Enter` (in any field) | Apply the filter — same as clicking **Apply** |
+
+The popup has four fields, all optional — leave any blank to not filter on that dimension:
+
+- **Date from / Date to** — smart dates: ISO 8601 (`2024-01-15`), named periods (`today`, `yesterday`, `last month`, `last year`, `ytd`), quarters (`q1`–`q4`, current year), or a relative offset (`-7d`, `+2w`, `-1m`, `+1y`).
+- **Account** — matches if *any* posting in the transaction matches. A plain string is a case-insensitive substring match; a string containing any regex metacharacter (`. ^ $ * + ? ( ) [ ] { } | \`) is compiled and matched as a Python regex instead (case-insensitive) — e.g. `^expenses:food` matches only accounts starting with that prefix, `food|rent` matches either. This is the same substring-or-regex convention hledger itself uses.
+- **Payee** — same substring-or-regex convention, matched against the transaction description.
+
+**Apply** builds the filter and shows only matching transactions, using the same show/edit/merge-back engine as `Ctrl+L` — edits made while filtered are merged back into the full journal when you clear the filter, switch to `Ctrl+L`, or save. An invalid date string or regex is rejected with a notification and the previous view is left unchanged.
+
+**Clear** restores the full journal.
+
+`Ctrl+O`'s criteria filter and `Ctrl+L`'s cleared/uncleared cycle are **mutually exclusive** — applying one automatically exits the other first. The status bar at the top of the editor shows which (if either) is currently active.
 
 ## Cleared / Status Toggle
 

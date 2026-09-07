@@ -39,6 +39,39 @@ class DateParseError(ValueError):
 # ---------------------------------------------------------------------------
 _ISO_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 
+# ---------------------------------------------------------------------------
+# Relative date offset pattern, e.g. "-7d", "+1m", "+2w", "-1y".
+#
+# Group breakdown:
+#   (1) [+-]   — direction: '+' for a date after today, '-' for before
+#   (2) \d+    — magnitude (may be more than one digit, e.g. "-30d")
+#   (3) [dwmy] — unit: d=days, w=weeks, m=months, y=years
+#
+# Edge cases:
+#   - "+0d" is valid (magnitude 0) and resolves to exactly `today`
+#   - No support for combined units ("-1m2d"); each string is a single unit
+#   - Unit letters are lowercase only — parse_date() already lowercases the
+#     full input before this pattern is tried, so "+1M" also matches
+# ---------------------------------------------------------------------------
+_RELATIVE_OFFSET = re.compile(r"^([+-])(\d+)([dwmy])$")
+
+
+def _add_months(d: datetime.date, months: int) -> datetime.date:
+    """Return d shifted by `months`, clamping the day to the target month's length.
+
+    Mirrors the month-end clamping convention used by the editor's own
+    Shift+Up/Down date-field shifting (widgets/date_shift.py's
+    _shift_date_str), for consistency: Jan 31 + 1 month → Feb 28/29, not an
+    error and not silently rolling into March.
+    """
+    import calendar
+
+    total = (d.year * 12 + d.month - 1) + months
+    new_year, new_month0 = divmod(total, 12)
+    new_month = new_month0 + 1
+    max_day = calendar.monthrange(new_year, new_month)[1]
+    return datetime.date(new_year, new_month, min(d.day, max_day))
+
 
 def parse_date(text: str, today: datetime.date | None = None) -> datetime.date:
     """Parse a smart date string into a datetime.date.
@@ -87,7 +120,19 @@ def parse_date(text: str, today: datetime.date | None = None) -> datetime.date:
         except ValueError as exc:
             raise DateParseError(f"Invalid calendar date: {text!r}") from exc
 
-    # TODO: implement relative offset parsing ("-7d", "+1m", "+1w")
+    m = _RELATIVE_OFFSET.match(text)
+    if m:
+        sign, magnitude_str, unit = m.groups()
+        magnitude = int(magnitude_str)
+        delta = magnitude if sign == "+" else -magnitude
+        if unit == "d":
+            return today + datetime.timedelta(days=delta)
+        if unit == "w":
+            return today + datetime.timedelta(weeks=delta)
+        if unit == "m":
+            return _add_months(today, delta)
+        # unit == "y"
+        return _add_months(today, delta * 12)
 
     raise DateParseError(f"Unrecognised date string: {text!r}")
 

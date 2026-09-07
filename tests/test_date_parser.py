@@ -64,6 +64,56 @@ class TestParseDate:
             parse_date("2024-02-30", TODAY)
 
 
+class TestParseDateRelativeOffset:
+    """Tests for the "-7d" / "+1m" / "+2w" / "-1y" relative offset grammar."""
+
+    def test_days_back(self) -> None:
+        assert parse_date("-7d", TODAY) == datetime.date(2024, 6, 8)
+
+    def test_days_forward(self) -> None:
+        assert parse_date("+7d", TODAY) == datetime.date(2024, 6, 22)
+
+    def test_multi_digit_magnitude(self) -> None:
+        assert parse_date("-30d", TODAY) == datetime.date(2024, 5, 16)
+
+    def test_weeks_forward(self) -> None:
+        assert parse_date("+1w", TODAY) == datetime.date(2024, 6, 22)
+
+    def test_weeks_back(self) -> None:
+        assert parse_date("-2w", TODAY) == datetime.date(2024, 6, 1)
+
+    def test_months_back(self) -> None:
+        assert parse_date("-1m", TODAY) == datetime.date(2024, 5, 15)
+
+    def test_months_forward(self) -> None:
+        assert parse_date("+2m", TODAY) == datetime.date(2024, 8, 15)
+
+    def test_years_forward(self) -> None:
+        assert parse_date("+1y", TODAY) == datetime.date(2025, 6, 15)
+
+    def test_years_back(self) -> None:
+        assert parse_date("-1y", TODAY) == datetime.date(2023, 6, 15)
+
+    def test_zero_magnitude_is_today(self) -> None:
+        assert parse_date("+0d", TODAY) == TODAY
+
+    def test_month_end_clamp_non_leap(self) -> None:
+        # Jan 31 + 1 month -> Feb 28 (2023 is not a leap year)
+        assert parse_date("+1m", datetime.date(2023, 1, 31)) == datetime.date(2023, 2, 28)
+
+    def test_month_end_clamp_leap(self) -> None:
+        # Jan 31 + 1 month -> Feb 29 (2024 is a leap year)
+        assert parse_date("+1m", datetime.date(2024, 1, 31)) == datetime.date(2024, 2, 29)
+
+    def test_uppercase_unit_matches(self) -> None:
+        # parse_date() lowercases the full input before this grammar is tried.
+        assert parse_date("+1M", TODAY) == datetime.date(2024, 7, 15)
+
+    def test_combined_units_not_supported(self) -> None:
+        with pytest.raises(DateParseError):
+            parse_date("-1m2d", TODAY)
+
+
 class TestParseDateRange:
     """Tests for parse_date_range()."""
 
