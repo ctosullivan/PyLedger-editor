@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ledgerkit-editor"
-version = "1.0.1"
+version = "1.0.2"
 description = "A keyboard-driven terminal editor for hledger plain-text accounting journals"
 readme = "README.md"
 license = { text = "MIT" }

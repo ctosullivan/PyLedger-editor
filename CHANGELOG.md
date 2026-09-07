@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-09-08
+
 ### Fixed
 - `P` price-directive lines are now syntax-highlighted field-by-field — the date, commodity, and rate (amount + its own commodity) each get their own colour, matching the level of detail given to transaction headers and postings. Previously a `P` line only got the flat "directive keyword + one uniform argument colour" treatment shared by every other directive, so the date/commodity/rate were visually indistinguishable from each other.
   **Human:** UAT for the 1.0.2 bug-fix batch passed; one further change: "a P directive transaction should be formatted ... in terms of syntax-highlighting - currently it has non[e]."
