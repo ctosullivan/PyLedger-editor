@@ -14,9 +14,10 @@
 | `Ctrl+F` | Open search bar (if closed), or jump to **next** match (if bar already open) |
 | `Shift+PgDown` | Jump to **next** match (when search bar is open); otherwise jump to next transaction header |
 | `Shift+PgUp` | Jump to **previous** match (when search bar is open); otherwise jump to previous transaction header |
+| `Ctrl+C` | While the search input has focus: copies the currently highlighted match's text to the clipboard. If you've selected text inside the search box itself instead, that selection is copied as normal. |
 | `Escape` | Close search bar (or unfocus editor) |
 
-Search requires at least 2 characters. Matches are highlighted in the editor: dim background for all matches, bright background for the current match. The counter shows "N of M" (or "No matches").
+Search requires at least 2 characters. Matches are highlighted in the editor: dim background for all matches, bright background for the current match. The counter shows "N of M" (or "No matches"). Jumping to a match keeps at least 4 lines of context visible above and below the cursor, matching transaction navigation (`Shift+PgUp`/`Shift+PgDown`).
 
 ## View Filter (Ctrl+L)
 
@@ -88,8 +89,8 @@ natively — arrow keys, `Home`/`End`, `Ctrl+←/→` (word jump), `PgUp`/`PgDn`
 
 | Shortcut | Action |
 |----------|--------|
-| `Shift+Up` | Increment the date component under the cursor (year, month, or day). Falls back to text selection when cursor is not on a date field. |
-| `Shift+Down` | Decrement the date component under the cursor (year, month, or day). Falls back to text selection when cursor is not on a date field. |
+| `Shift+Up` | Increment the date component under the cursor (year, month, or day) — on either a transaction header or a `P` price-directive date. An unpadded date (e.g. `2026-9-1`) is expanded to zero-padded form (`2026-09-01`) as part of the same shift. Falls back to text selection when cursor is not on a date field. |
+| `Shift+Down` | Decrement the date component under the cursor (year, month, or day) — on either a transaction header or a `P` price-directive date, with the same unpadded-date expansion as `Shift+Up`. Falls back to text selection when cursor is not on a date field. |
 | `Shift+Alt+Up` | Increment date by one month *(reserved — not yet implemented)* |
 | `Shift+Alt+Down` | Decrement date by one month *(reserved — not yet implemented)* |
 | `Alt+P` | Insert previous matching transaction template (Emacs `M-p`) |

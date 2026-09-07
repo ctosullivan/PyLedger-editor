@@ -1,12 +1,15 @@
 """Tests for the date-shifting helpers in transaction_table.py.
 
-Covers _date_subfield_at_col (column-to-subfield mapping) and _shift_date_str
-(arithmetic + separator preservation), including overflow and edge cases.
+Covers _date_subfield_at_col (column-to-subfield mapping, now derived from
+the date string's own layout rather than a fixed width), _normalize_date_str
+(zero-padding an unpadded date), and _shift_date_str (arithmetic + separator
+preservation), including overflow and edge cases.
 """
 import pytest
 
 from ledgerkit_editor.widgets.transaction_table import (
     _date_subfield_at_col,
+    _normalize_date_str,
     _shift_date_str,
 )
 
@@ -18,19 +21,66 @@ from ledgerkit_editor.widgets.transaction_table import (
 class TestDateSubfieldAtCol:
     def test_year_cols(self):
         for col in range(4):
-            assert _date_subfield_at_col(col) == "year"
+            assert _date_subfield_at_col("2024-01-15", col) == "year"
 
     def test_month_cols(self):
         for col in range(4, 7):
-            assert _date_subfield_at_col(col) == "month"
+            assert _date_subfield_at_col("2024-01-15", col) == "month"
 
     def test_day_cols(self):
         for col in range(7, 10):
-            assert _date_subfield_at_col(col) == "day"
+            assert _date_subfield_at_col("2024-01-15", col) == "day"
 
     def test_past_date_returns_none(self):
         for col in [10, 11, 20, 99]:
-            assert _date_subfield_at_col(col) is None
+            assert _date_subfield_at_col("2024-01-15", col) is None
+
+    def test_negative_col_returns_none(self):
+        assert _date_subfield_at_col("2024-01-15", -1) is None
+
+    def test_not_a_date_returns_none(self):
+        assert _date_subfield_at_col("not-a-date", 0) is None
+
+    # Unpadded dates: field boundaries shrink to match the actual layout.
+    def test_unpadded_month_and_day(self):
+        # "2026-9-1": year=0-3, sep=4, month=5, sep=6, day=7
+        assert _date_subfield_at_col("2026-9-1", 0) == "year"
+        assert _date_subfield_at_col("2026-9-1", 4) == "month"  # separator
+        assert _date_subfield_at_col("2026-9-1", 5) == "month"
+        assert _date_subfield_at_col("2026-9-1", 6) == "day"  # separator
+        assert _date_subfield_at_col("2026-9-1", 7) == "day"
+        assert _date_subfield_at_col("2026-9-1", 8) is None
+
+    def test_unpadded_month_only(self):
+        # "2026-9-01": year=0-3, sep=4, month=5, sep=6, day=7-8
+        assert _date_subfield_at_col("2026-9-01", 5) == "month"
+        assert _date_subfield_at_col("2026-9-01", 6) == "day"  # separator
+        assert _date_subfield_at_col("2026-9-01", 8) == "day"
+        assert _date_subfield_at_col("2026-9-01", 9) is None
+
+
+# ---------------------------------------------------------------------------
+# _normalize_date_str
+# ---------------------------------------------------------------------------
+
+class TestNormalizeDateStr:
+    def test_pads_month_and_day(self):
+        assert _normalize_date_str("2026-9-1") == "2026-09-01"
+
+    def test_pads_month_only(self):
+        assert _normalize_date_str("2026-9-15") == "2026-09-15"
+
+    def test_pads_day_only(self):
+        assert _normalize_date_str("2026-09-1") == "2026-09-01"
+
+    def test_already_padded_unchanged(self):
+        assert _normalize_date_str("2026-09-01") == "2026-09-01"
+
+    def test_preserves_slash_separator(self):
+        assert _normalize_date_str("2026/9/1") == "2026/09/01"
+
+    def test_not_a_date_returned_unchanged(self):
+        assert _normalize_date_str("not-a-date") == "not-a-date"
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +105,10 @@ class TestShiftDay:
 
     def test_separator_slash_preserved(self):
         assert _shift_date_str("2024/01/15", "day", +1) == "2024/01/16"
+
+    def test_unpadded_input_produces_padded_output(self):
+        # "2026-9-1" is not zero-padded; output must always be canonical.
+        assert _shift_date_str("2026-9-1", "day", +1) == "2026-09-02"
 
 
 # ---------------------------------------------------------------------------

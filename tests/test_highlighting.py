@@ -99,6 +99,16 @@ class TestScanner:
         assert infos[0].cleared is False
         assert infos[0].pending is False
 
+    def test_unpadded_month_and_day_header_classified(self) -> None:
+        """A date without leading zeros (e.g. 2026-9-1) must still be
+        recognised as a transaction header, not fall through to UNKNOWN."""
+        infos = _scan("2026-9-1 Opening balances")
+        assert infos[0].kind == LineKind.XACT_HEADER
+
+    def test_unpadded_month_only_header_classified(self) -> None:
+        infos = _scan("2026-9-15 Opening balances")
+        assert infos[0].kind == LineKind.XACT_HEADER
+
     def test_posting_classified(self) -> None:
         text = f"{CLEARED_HEADER}\n{POSTING_LINE}"
         infos = _scan(text)
@@ -296,6 +306,65 @@ class TestHighlightDirective:
 
     def test_commodity_directive(self) -> None:
         spans = _highlights("commodity EUR")
+        token_names = [s[2] for s in spans]
+        assert tokens.DIRECTIVE in token_names
+
+
+class TestHighlightPriceDirective:
+    """P directives get field-level highlighting: date/commodity/rate each
+    coloured separately, rather than one flat DIRECTIVE_ARG span."""
+
+    def test_still_classified_as_directive(self) -> None:
+        infos = _scan("P 2026-09-01 EUR 1.08 USD")
+        assert infos[0].kind == LineKind.DIRECTIVE
+
+    def test_keyword_token(self) -> None:
+        spans = _highlights("P 2026-09-01 EUR 1.08 USD")
+        token_names = [s[2] for s in spans]
+        assert tokens.DIRECTIVE in token_names
+
+    def test_date_token_present_and_correct_range(self) -> None:
+        line = "P 2026-09-01 EUR 1.08 USD"
+        spans = _highlights(line)
+        date_span = next(s for s in spans if s[2] == tokens.DATE)
+        assert line[date_span[0]:date_span[1]] == "2026-09-01"
+
+    def test_unpadded_date_still_gets_date_token(self) -> None:
+        line = "P 2026-9-1 EUR 1.08 USD"
+        spans = _highlights(line)
+        date_span = next(s for s in spans if s[2] == tokens.DATE)
+        assert line[date_span[0]:date_span[1]] == "2026-9-1"
+
+    def test_commodity_token_present_and_correct_range(self) -> None:
+        line = "P 2026-09-01 EUR 1.08 USD"
+        spans = _highlights(line)
+        commodity_span = next(s for s in spans if s[2] == tokens.COMMODITY)
+        assert line[commodity_span[0]:commodity_span[1]] == "EUR"
+
+    def test_rate_amount_token_present(self) -> None:
+        line = "P 2026-09-01 EUR 1.08 USD"
+        spans = _highlights(line)
+        token_names = [s[2] for s in spans]
+        assert tokens.AMOUNT_POSITIVE in token_names
+
+    def test_no_flat_directive_arg_span(self) -> None:
+        """A P directive should not also get the generic flat-arg span —
+        field-level tokens replace it, they don't add to it."""
+        spans = _highlights("P 2026-09-01 EUR 1.08 USD")
+        token_names = [s[2] for s in spans]
+        assert tokens.DIRECTIVE_ARG not in token_names
+
+    def test_quoted_commodity_name(self) -> None:
+        line = 'P 2026-09-01 "My Fund" 100.00 USD'
+        spans = _highlights(line)
+        commodity_span = next(s for s in spans if s[2] == tokens.COMMODITY)
+        assert line[commodity_span[0]:commodity_span[1]] == '"My Fund"'
+
+    def test_malformed_price_directive_falls_back_to_generic(self) -> None:
+        """A "P" line too terse to match the full grammar (no rate) still
+        gets *some* highlighting via the generic directive path, rather than
+        raising or returning nothing."""
+        spans = _highlights("P 2026-09-01")
         token_names = [s[2] for s in spans]
         assert tokens.DIRECTIVE in token_names
 

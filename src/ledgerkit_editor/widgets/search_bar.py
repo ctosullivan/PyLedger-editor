@@ -11,6 +11,7 @@ import bisect
 import re
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.widget import Widget
 from textual.widgets import Button, Input, Label
 
@@ -76,6 +77,19 @@ class SearchBar(Widget):
     Calls LedgerTextArea.set_search_matches() to drive highlighting.
     """
 
+    BINDINGS = [
+        # Not priority: the focused #search-input Input's own "ctrl+c" ->
+        # action_copy binding (Textual 8.2.5) must get first refusal, so a
+        # real text selection the user made *inside the search box* still
+        # copies normally. Input.action_copy() raises SkipAction when it has
+        # no selection of its own — the search query text is never selected,
+        # only highlighted inside the journal TextArea — and that SkipAction
+        # lets the key bubble up the focus chain to this binding instead of
+        # falling all the way to App's default ctrl+c ("press ctrl+q to
+        # quit") notification.
+        Binding("ctrl+c", "copy_match", "Copy match", show=False),
+    ]
+
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         self._matches: list[tuple[Location, Location]] = []
@@ -135,6 +149,22 @@ class SearchBar(Widget):
     def advance_to_transaction(self, direction: int = 1) -> None:
         """Jump to the next transaction block that contains a match."""
         self._advance_transaction(direction)
+
+    def action_copy_match(self) -> None:
+        """Copy the current search match's text to the clipboard (Ctrl+C).
+
+        Only reached when the focused search-input Input has no selection of
+        its own to copy (see the BINDINGS comment above). A no-op when there
+        is no active match, so Ctrl+C never errors or does something
+        surprising with an empty/short query.
+        """
+        if self._current == -1 or not self._matches:
+            return
+        from ledgerkit_editor.widgets.ledger_textarea import LedgerTextArea  # noqa: PLC0415
+
+        textarea = self.app.query_one("#journal_textarea", LedgerTextArea)
+        start, end = self._matches[self._current]
+        self.app.copy_to_clipboard(textarea.get_text_range(start, end))
 
     # ------------------------------------------------------------------
     # Event handlers

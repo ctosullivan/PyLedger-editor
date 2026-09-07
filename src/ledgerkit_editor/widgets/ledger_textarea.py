@@ -104,14 +104,20 @@ class LedgerTextArea(TextArea):
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
-    # Scroll cursor into view — keep 4 lines of context below cursor
+    # Scroll cursor into view — keep 4 lines of context above and below
     # ------------------------------------------------------------------
 
     def scroll_cursor_visible(self, center: bool = False, animate: bool = False) -> "Offset":
-        """Keep cursor visible with a 4-line bottom context margin.
+        """Keep cursor visible with a 4-line context margin on both edges.
 
-        Overrides TextArea.scroll_cursor_visible to add bottom spacing so the
-        cursor never sits flush against the last visible row (Textual 0.83.0).
+        Overrides TextArea.scroll_cursor_visible to add top/bottom spacing so
+        the cursor never sits flush against the first or last visible row
+        (Textual 0.83.0). Textual's own TextArea._watch_selection() calls
+        this on every move_cursor(), so upward navigation (Shift+PgUp,
+        previous transaction, previous search match) gets the same margin as
+        downward navigation — a top-only or bottom-only margin here would
+        make one direction scroll flush to the viewport edge while the other
+        reserves context.
         """
         from textual.geometry import Offset, Region, Spacing
 
@@ -121,7 +127,7 @@ class LedgerTextArea(TextArea):
         x, y = self._cursor_offset
         return self.scroll_to_region(
             Region(x, y, width=3, height=1),
-            spacing=Spacing(right=self.gutter_width, bottom=4),
+            spacing=Spacing(top=4, right=self.gutter_width, bottom=4),
             animate=animate,
             force=True,
             center=center,
