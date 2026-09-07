@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- `P` price-directive lines are now syntax-highlighted field-by-field — the date, commodity, and rate (amount + its own commodity) each get their own colour, matching the level of detail given to transaction headers and postings. Previously a `P` line only got the flat "directive keyword + one uniform argument colour" treatment shared by every other directive, so the date/commodity/rate were visually indistinguishable from each other.
+  **Human:** UAT for the 1.0.2 bug-fix batch passed; one further change: "a P directive transaction should be formatted ... in terms of syntax-highlighting - currently it has non[e]."
+  **Claude:** Added `_PRICE_DIRECTIVE_HIGHLIGHT_RE` and `LedgerHighlighter._highlight_price_directive()`, which `_highlight_directive()` now tries first for any directive line; reuses the existing `_highlight_amount_section()` helper for the rate so P-directive amounts get the same positive/negative/zero colouring as posting amounts. Falls back to the generic flat highlighting for a `P` line too terse to match the full `P DATE COMMODITY RATE` grammar.
+
 - Shift+Up/Down now shift the date in a `P` price-directive line (e.g. `P 2026-09-01 EUR 1.08 USD`), not just a transaction header date. Previously the date-shift logic only recognised `LineKind.XACT_HEADER` lines, so `P` directives — classified as generic `LineKind.DIRECTIVE` — silently fell through to text selection.
   **Human:** Implement Phase 1 of the next-release plan (`planning/next-release-phase-plan.md`), bug 1.1: "dates in P declarations are not being treated as dates."
   **Claude:** Added `_PRICE_DIRECTIVE_RE` to locate a `P` directive's date span, and extended `JournalEditor._shift_date_by()` to shift it the same way as a header date, sharing the existing `_shift_date_str`/`_normalize_date_str` helpers.

@@ -72,6 +72,37 @@ _DIRECTIVE_RE = re.compile(
     r"|[DPY])(?:\s+(.*))?$"
 )
 
+# Matches a P (market price) directive with enough structure to highlight its
+# date, commodity, and rate fields individually, rather than the flat
+# keyword+argument treatment every other directive gets (see
+# _highlight_directive / _highlight_price_directive).
+#
+# Group breakdown:
+#   (1) P                              — the directive keyword itself
+#   (2) \d{4}[-/]\d{1,2}[-/]\d{1,2}     — the date argument; 1-2 digit
+#       month/day accepted, matching _XACT_HEADER_RE's unpadded-date support
+#   (3) "[^"]+"|\S+                    — the commodity being priced: either a
+#       quoted name (may contain spaces, e.g. "Chocolate Frogs") or a single
+#       unquoted token (e.g. EUR, $, BTC)
+#   (4) .*                             — the rate: the rest of the line,
+#       itself an amount (optionally with its own commodity and/or a
+#       trailing ';' comment) — parsed separately by
+#       _highlight_amount_section, the same helper posting-line amounts use
+#
+# Edge cases:
+#   - "P 2026-09-01 EUR 1.08 USD" — group 3 = "EUR", group 4 = "1.08 USD"
+#   - "P 2026-9-1 EUR 1.08 USD" — unpadded date still matches (group 2)
+#   - "P 2026-09-01 \"My Fund\" 100.00 USD" — quoted commodity name with a space
+#   - A line with fewer than 4 whitespace-separated fields (e.g. a bare "P"
+#     or "P 2026-09-01" with no commodity/rate) does not match; the caller
+#     falls back to the generic directive keyword+argument highlighting
+_PRICE_DIRECTIVE_HIGHLIGHT_RE = re.compile(
+    r"^(P)\s+"
+    r"(\d{4}[-/]\d{1,2}[-/]\d{1,2})\s+"
+    r"(\"[^\"]+\"|\S+)\s+"
+    r"(.*)$"
+)
+
 # Matches a standalone comment line in hledger journal format.
 # Purpose: skip these lines in the transaction scanner so they don't reset
 #          or advance clearing-state tracking.
@@ -399,7 +430,17 @@ class LedgerHighlighter:
         return [(0, None, tokens.COMMENT)]
 
     def _highlight_directive(self, line_text: str) -> list[Span]:
-        """Return spans for a directive line."""
+        """Return spans for a directive line.
+
+        P (price) directives get field-level highlighting — date, commodity,
+        and rate each coloured separately, matching the detail given to
+        transaction headers and postings — via _highlight_price_directive().
+        Every other directive keeps the flatter keyword+argument treatment.
+        """
+        price_spans = self._highlight_price_directive(line_text)
+        if price_spans is not None:
+            return price_spans
+
         spans: list[Span] = []
         m = _DIRECTIVE_RE.match(line_text)
         if not m:
@@ -409,4 +450,24 @@ class LedgerHighlighter:
         if m.group(2) is not None and m.group(2).strip():
             spans.append((m.start(2), None, tokens.DIRECTIVE_ARG))
 
+        return spans
+
+    def _highlight_price_directive(self, line_text: str) -> Optional[list[Span]]:
+        """Return field-level spans for a P (market price) directive.
+
+        Returns None when line_text doesn't match the full "P DATE COMMODITY
+        RATE" grammar (_PRICE_DIRECTIVE_HIGHLIGHT_RE), so the caller can fall
+        back to generic directive highlighting rather than losing colour
+        entirely on a malformed or unusually terse P line.
+        """
+        m = _PRICE_DIRECTIVE_HIGHLIGHT_RE.match(line_text)
+        if not m:
+            return None
+
+        spans: list[Span] = [
+            (m.start(1), m.end(1), tokens.DIRECTIVE),
+            (m.start(2), m.end(2), tokens.DATE),
+            (m.start(3), m.end(3), tokens.COMMODITY),
+        ]
+        spans.extend(self._highlight_amount_section(m.start(4), m.group(4)))
         return spans
