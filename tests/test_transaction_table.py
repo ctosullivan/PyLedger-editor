@@ -6,11 +6,13 @@ import shutil
 
 from ledgerkit_editor.app import LedgerApp
 from ledgerkit_editor.widgets.ledger_textarea import LedgerTextArea
+from ledgerkit_editor.widgets.transaction_blocks import (
+    _cycle_flag_in_header,
+    _find_transaction_block,
+)
 from ledgerkit_editor.widgets.transaction_table import (
     JournalEditor,
-    _cycle_flag_in_header,
     _extract_account_from_line,
-    _find_transaction_block,
 )
 from textual.widgets import TextArea
 

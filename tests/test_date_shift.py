@@ -1,4 +1,4 @@
-"""Tests for the date-shifting helpers in transaction_table.py.
+"""Tests for the date-shifting helpers in date_shift.py.
 
 Covers _date_subfield_at_col (column-to-subfield mapping, now derived from
 the date string's own layout rather than a fixed width), _normalize_date_str
@@ -7,7 +7,7 @@ preservation), including overflow and edge cases.
 """
 import pytest
 
-from ledgerkit_editor.widgets.transaction_table import (
+from ledgerkit_editor.widgets.date_shift import (
     _date_subfield_at_col,
     _normalize_date_str,
     _shift_date_str,

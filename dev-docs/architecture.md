@@ -1,38 +1,76 @@
 # Editor Architecture
 
+> **Note on staleness (2026-09-08):** "Module Responsibilities" below was
+> rewritten to match the actual current `src/ledgerkit_editor/` tree as of
+> the Phase 2 module split (see `planning/next-release-phase-plan.md`).
+> "Layout", "Data Flow", and "ledgerkit Integration Points" below that,
+> however, still describe the pre-v0.8.0 multi-panel architecture
+> (`BalanceSidebar`, `RegisterPanel`) that was removed in v0.8.0 — the app
+> is now a single-pane text editor with no side panels (see `ROADMAP.md`
+> "Window Panes — Removed in v0.8.0"). Those sections are pending a full
+> refresh; treat their message-flow diagrams as historical, not current.
+
 ## Module Responsibilities
 
 ```
 src/ledgerkit_editor/
-├── app.py                  — LedgerApp (Textual App root); composes layout,
-│                             wires message handlers (SaveCompleted,
-│                             CursorAccountChanged, AccountSelected)
+├── app.py                     — LedgerApp (Textual App root); composes
+│                                 Header, file-path bar, JournalEditor, Footer;
+│                                 owns the transaction filter popup (Ctrl+O)
 ├── widgets/
-│   ├── transaction_table.py — JournalEditor: TextArea-based text editor;
-│   │                          loads raw journal text; posts CursorAccountChanged
-│   │                          on cursor move; Ctrl+S sorts+saves via journal_to_text
-│   ├── balance_sidebar.py  — BalanceSidebar: reads ledgerkit balance(tree=True)
-│   │                          asynchronously; Tree widget on the right panel;
-│   │                          posts AccountSelected on node click
-│   ├── register_panel.py   — RegisterPanel: DataTable showing the 10 most recent
-│   │                          postings for the active account; updated by
-│   │                          CursorAccountChanged and AccountSelected messages
-│   └── filter_popup.py     — FilterPopup: overlay triggered by Ctrl+Shift+F
+│   ├── transaction_table.py   — JournalEditor: TextArea-based text editor;
+│   │                            loads raw journal text; Ctrl+S sorts+saves;
+│   │                            BINDINGS, message classes, cursor tracking —
+│   │                            deliberately thin, delegates larger concerns
+│   │                            to the three mixins below (Module Size Rule
+│   │                            split, Phase 2 of the next-release plan)
+│   ├── date_shift.py          — DateShiftMixin: Shift+Up/Down date-field
+│   │                            shifting (transaction headers and P price
+│   │                            directives), plus the pure regex/arithmetic
+│   │                            helpers it's built from
+│   ├── transaction_blocks.py  — TransactionBlocksMixin: Ctrl+T (select/
+│   │                            extend block), Ctrl+G (duplicate to end),
+│   │                            Ctrl+R (single/bulk cleared toggle)
+│   ├── view_filter.py         — ViewFilterMixin: Ctrl+L cleared/uncleared
+│   │                            view-cycle engine (parse → hide → merge
+│   │                            edits back → restore on exit)
+│   ├── view_filter_bar.py     — ViewFilterBar: 1-row status bar showing the
+│   │                            active Ctrl+L mode
+│   ├── ledger_textarea.py     — LedgerTextArea: TextArea subclass wiring in
+│   │                            LedgerHighlighter syntax highlighting and
+│   │                            search-match highlighting
+│   ├── search_bar.py          — SearchBar: Ctrl+F incremental search bar,
+│   │                            match highlighting, Ctrl+C copies the match
+│   └── filter_popup.py        — FilterPopup: overlay triggered by Ctrl+O
+│                                 (UI stub — criteria filtering not yet wired
+│                                 up; see planning/next-release-phase-plan.md
+│                                 Phase 3)
+├── highlighting/
+│   ├── highlighter.py         — LedgerHighlighter: pure-Python, no-Textual-
+│   │                            imports regex-based syntax highlighter
+│   ├── theme_bridge.py        — Builds a Textual TextAreaTheme from the
+│   │                            active app theme's CSS variables
+│   └── tokens.py               — ledger.* token name constants
+├── themes/                     — Bundled Theme + TextAreaTheme definitions
+│                                 (currently Monokai Pro)
 ├── keybindings/
-│   ├── office.py           — OfficeBindings mixin: MS Office / Excel action stubs
-│   └── emacs_ledger.py     — EmacsLedgerBindings mixin: Emacs Ledger-mode stubs
-├── commands/__init__.py    — Command + CommandHistory (Layer 2 undo/redo stack)
-│                             and command palette provider stubs
+│   ├── office.py               — OfficeBindings mixin: MS Office / Excel action stubs
+│   └── emacs_ledger.py         — EmacsLedgerBindings mixin: Emacs Ledger-mode stubs
+├── commands/__init__.py        — Command + CommandHistory (Layer 2 undo/redo stack)
+│                                 and command palette provider stubs
 └── utils/
-    ├── date_parser.py      — Smart date string → datetime.date
-    ├── ledger_io.py        — Thin wrappers over ledgerkit.load() and EditorDocument;
-    │                         align_posting_amounts() (column-52 amount formatting)
-    ├── atomic_edit.py      — atomic_edit() context manager (collapses N replace()
-    │                         calls into one undo entry via EditHistory._undo_stack)
-    └── file_resolver.py    — Journal file resolution (CLI → env → default → None)
+    ├── date_parser.py          — Smart date string → datetime.date
+    ├── ledger_io.py            — Thin wrappers over ledgerkit.load()/journal_to_text();
+    │                             align_posting_amounts() (column-52 amount formatting);
+    │                             split_journal_segments() (directive/comment preservation)
+    ├── commodity_format.py     — Infers and re-applies per-commodity display
+    │                             formats (prefix/suffix, decimals, grouping)
+    ├── atomic_edit.py          — atomic_edit() context manager (collapses N replace()
+    │                             calls into one undo entry via EditHistory._undo_stack)
+    └── file_resolver.py        — Journal file resolution (CLI → env → default → None)
 ```
 
-## Layout
+## Layout (historical — see staleness note above)
 
 ```
 Screen (horizontal)
@@ -42,7 +80,7 @@ Screen (horizontal)
     └── RegisterPanel   (DataTable, height: 14, bottom)
 ```
 
-## Data Flow
+## Data Flow (historical — see staleness note above)
 
 ```
 Journal file on disk
@@ -73,7 +111,7 @@ JournalEditor (TextArea)
                         RegisterPanel.show_account(account)
 ```
 
-## ledgerkit Integration Points
+## ledgerkit Integration Points (historical — see staleness note above)
 
 | Editor action | ledgerkit API |
 |---|---|

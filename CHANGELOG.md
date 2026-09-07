@@ -6,6 +6,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `widgets/transaction_table.py` (944 lines — well over the Module Size Rule's 300–500 line guidance) split into four files: `transaction_table.py` (JournalEditor skeleton — BINDINGS, message classes, init/mount, save, cursor tracking; now 428 lines), `date_shift.py` (`DateShiftMixin` — Shift+Up/Down), `transaction_blocks.py` (`TransactionBlocksMixin` — Ctrl+T/Ctrl+G/Ctrl+R), `view_filter.py` (`ViewFilterMixin` — Ctrl+L). `JournalEditor` now inherits from all three mixins. No behaviour change — the full test suite (353 tests) passes unchanged; only test imports of the moved private helpers were updated to their new module paths.
+  **Human:** Implement Phase 2 of the next-release plan (`planning/next-release-phase-plan.md`) — the module-size split, already approved as part of the plan's "Open decisions."
+  **Claude:** Performed the split exactly as proposed in the plan (file-for-file), using the same mixin pattern already established by `keybindings/office.py`/`keybindings/emacs_ledger.py`. Updated `dev-docs/architecture.md`'s "Module Responsibilities" tree to match; flagged (but did not rewrite) that document's other, pre-v0.8.0-stale sections for the Phase 6 documentation-audit skill.
+
 ## [1.0.2] — 2026-09-08
 
 ### Fixed
