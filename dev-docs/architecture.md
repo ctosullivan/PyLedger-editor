@@ -1,14 +1,13 @@
 # Editor Architecture
 
-> **Note on staleness (2026-09-08):** "Module Responsibilities" below was
-> rewritten to match the actual current `src/ledgerkit_editor/` tree as of
-> the Phase 2 module split (see `planning/next-release-phase-plan.md`).
-> "Layout", "Data Flow", and "ledgerkit Integration Points" below that,
-> however, still describe the pre-v0.8.0 multi-panel architecture
-> (`BalanceSidebar`, `RegisterPanel`) that was removed in v0.8.0 — the app
-> is now a single-pane text editor with no side panels (see `ROADMAP.md`
-> "Window Panes — Removed in v0.8.0"). Those sections are pending a full
-> refresh; treat their message-flow diagrams as historical, not current.
+> Last audited 2026-09-08 against the actual `src/ledgerkit_editor/` tree,
+> by `.claude/skills/document-package/SKILL.md`'s pilot run (see
+> `planning/next-release-phase-plan.md` Phase 6). Previous drift this pass
+> corrected: "Layout"/"Data Flow"/"ledgerkit Integration Points" described
+> the pre-v0.8.0 `BalanceSidebar`/`RegisterPanel` architecture, removed in
+> v0.8.0 (see `ROADMAP.md` "Window Panes — Removed in v0.8.0") — the app
+> has been a single-pane text editor with no side panels since. Re-run that
+> skill periodically; don't let this note itself go stale.
 
 ## Module Responsibilities
 
@@ -106,56 +105,83 @@ src/ledgerkit_editor/
     └── file_resolver.py        — Journal file resolution (CLI → env → default → None)
 ```
 
-## Layout (historical — see staleness note above)
+## Layout
 
 ```
-Screen (horizontal)
-├── JournalEditor     (TextArea, width: 1fr, left)
-└── #right_panel      (Vertical container, width: 48, right)
-    ├── BalanceSidebar  (Tree, height: 2fr, top)
-    └── RegisterPanel   (DataTable, height: 14, bottom)
+Screen (LedgerApp.compose())
+├── Header
+├── #file-path-bar     (Static, 1 row — resolved file path + "· modified")
+├── JournalEditor       (width: 1fr — the entire editing surface)
+│   ├── ViewFilterBar    (1 row, docked top — shows Ctrl+L/Ctrl+O status)
+│   ├── LedgerTextArea   (#journal_textarea, height: 1fr — the live buffer)
+│   ├── SearchBar        (docked bottom, hidden until Ctrl+F)
+│   └── AutocompletePopup (docked bottom, hidden until Tab completes something)
+└── Footer
+
+FilterPopup (Ctrl+O) mounts as a Screen-level overlay — a sibling of
+JournalEditor, not a child of it, unlike SearchBar/AutocompletePopup above.
+That's why its FilterApplied/FilterCleared messages are handled by
+LedgerApp rather than JournalEditor (messages bubble to ancestors, and
+JournalEditor isn't one — see Module Responsibilities' filter_popup.py entry).
 ```
 
-## Data Flow (historical — see staleness note above)
+No side panels remain (`BalanceSidebar`, `RegisterPanel`, and all
+reconcile-mode widgets were removed in v0.8.0 — see `ROADMAP.md` "Window
+Panes — Removed in v0.8.0"). `JournalEditor` is the entire editing surface.
+
+## Data Flow
 
 ```
 Journal file on disk
         │
-        ▼
-JournalEditor (TextArea)
-        │  loads raw text via EditorDocument.lines
+        ▼  on_mount(): Path(self.journal_path).read_text()
+LedgerTextArea (#journal_textarea) — the live text buffer
         │
-        ├── Ctrl+S:
-        │     parse_string_lenient(text) → sort → journal_to_text()
-        │     → align_posting_amounts() → Path.write_text()
-        │     → SaveCompleted → BalanceSidebar.refresh_balances()
+        ├── Ctrl+S (action_save, transaction_table.py):
+        │     ledgerkit.parse_string_lenient(text) → sort by date
+        │     → transaction_to_text() per txn, interleaved with the
+        │       directive/comment blocks split_journal_segments() preserved
+        │     → apply_commodity_styles() → align_posting_amounts()
+        │     → textarea.load_text(sorted_text) + Path.write_text()
+        │     → rebuild_journal_index() (refreshes Tab-autocomplete data)
+        │     → SaveCompleted / FileModifiedChanged messages
         │
-        ├── Shift+C: _cycle_flag_in_header(line) → textarea.replace()
+        ├── Ctrl+R (TransactionBlocksMixin.action_toggle_cleared /
+        │     _bulk_toggle_cleared, transaction_blocks.py):
+        │     _cycle_flag_in_header(line) → textarea.replace(), single or
+        │     atomic_edit()-wrapped for a bulk selection
         │
-        └── cursor move: _account_at_cursor() → CursorAccountChanged
-                │
-                ▼
-          RegisterPanel.show_account(account)
-                │
-                └── journal.register(query=Query(account=...))
-                      → last 10 RegisterRow entries → DataTable
-
-        BalanceSidebar (separate ledgerkit.load() on each refresh)
-                │  journal.balance(tree=True) → Tree nodes
-                │
-                └── node click → AccountSelected →
-                        RegisterPanel.show_account(account)
+        ├── Shift+Up/Down (DateShiftMixin._shift_date_by, date_shift.py):
+        │     locates the date span (header or P directive) → textarea.replace()
+        │
+        ├── Ctrl+L / Ctrl+O (ViewFilterMixin, view_filter.py):
+        │     parse_string_lenient(text) → hide non-matching transactions
+        │     (cleared-state check, or an arbitrary predicate from
+        │     query_match.build_transaction_predicate()) → textarea.load_text()
+        │     → edits merged back into the parsed Journal on exit or save
+        │
+        ├── Tab (AutocompleteMixin.action_autocomplete, autocomplete.py):
+        │     _completion_context() → JournalIndex.matching_accounts()/
+        │     matching_payees() → textarea.replace() + AutocompletePopup.show()
+        │
+        └── cursor move (on_text_area_selection_changed):
+              _account_at_cursor() → self._current_account. Tracked but
+              currently unconsumed by anything else — a holdover from the
+              removed BalanceSidebar/RegisterPanel era, when it drove a
+              CursorAccountChanged message. Not a bug; just note it if
+              you're wondering why nothing reacts to it.
 ```
 
-## ledgerkit Integration Points (historical — see staleness note above)
+## ledgerkit Integration Points
 
 | Editor action | ledgerkit API |
 |---|---|
-| Open file | `ledgerkit.EditorDocument(path)` → `.lines` for raw text |
-| Balance sidebar | `ledgerkit.load(path)` → `journal.balance(tree=True)` |
-| Validate / sort on save | `ledgerkit.parse_string_lenient(text)` → `journal_to_text()` |
+| Open file | `Path(journal_path).read_text()` — raw text, not via ledgerkit; `utils/ledger_io.py` also exposes `load_journal()`/`save_journal()` wrapping `ledgerkit.load()`/`journal_to_text()`, tested in `test_ledger_io.py`, but the live `JournalEditor` load/save path (below) doesn't call them — they're a stable public utility, not currently in the app's own data flow |
+| Validate / sort / save | `ledgerkit.parse_string_lenient(text)` → `transaction_to_text()` per transaction (not the whole-journal `journal_to_text()` — that path is used only for the Ctrl+L "restore full journal" case when the transaction count didn't change) |
 | Post-save checks | `ledgerkit.checks.run_basic_checks(journal)` |
-| Register panel | `journal.register(query=ledgerkit.Query(account=...))` |
+| Commodity formatting | `Journal.commodity_styles` (via `utils/commodity_format.extract_commodity_styles()`) |
+| Transaction Filter (Ctrl+O) | `ledgerkit.Query` built by `FilterPopup`, matched via `utils/query_match.build_transaction_predicate()` (a local reimplementation — see that module's docstring) |
+| Tab autocomplete | `Journal.declared_accounts` / `.declared_payees` (`utils/journal_index.py`) |
 
 ## Two-Layer Undo Stack
 
@@ -170,16 +196,22 @@ JournalEditor maintains two separate undo stacks:
 
 ## Key Design Decisions
 
-- The TextArea is the **live text buffer** — `EditorDocument` is only used for
-  the initial file load; saves write directly via `Path.write_text`.
-- `journal_to_text()` does **not** preserve directives or comments — this is a
-  known v0.5.0 limitation documented in `knowledge_base/`.
-- `Query(account=X)` uses substring/regex matching (hledger semantics), so child
-  accounts (e.g. `expenses:food:organic`) also appear in the register.
-- `running_balance` in RegisterPanel is a plain `Decimal` with no commodity symbol.
-- Validation errors on save produce notifications but do **not** block the write.
-- Shift+C cycles 3 states: uncleared → pending → cleared → uncleared.
-- Amount column alignment (column 52) is a post-processing step in `action_save()`;
-  it does not modify ledgerkit's `journal_to_text()` output in-place.
+- The `LedgerTextArea` **is** the live text buffer — loaded via a direct
+  `Path.read_text()`/`Path.write_text()` round-trip, not through
+  `ledgerkit.EditorDocument` (see "ledgerkit Integration Points" above).
+- `transaction_to_text()`/`journal_to_text()` do **not** preserve directives
+  or comments on their own — `action_save()` works around this by
+  interleaving `split_journal_segments()`'s preserved non-transaction
+  blocks between sorted transaction texts (`utils/ledger_io.py`).
+- `Query(account=X)` (and the local `query_match.matches_pattern()`) use
+  substring/regex matching (hledger semantics), so child accounts (e.g.
+  `expenses:food:organic`) also match a parent-account filter.
+- Validation errors on save produce notifications but do **not** block the
+  write.
+- `Ctrl+R` cycles 3 states: uncleared → pending (`!`) → cleared (`*`) →
+  uncleared, single transaction or bulk over a multi-block selection.
+- Amount column alignment (column 52) is a post-processing step in
+  `action_save()` (`align_posting_amounts()`); it does not modify
+  ledgerkit's own text output in place.
 
 See `knowledge_base/design_decisions.md` for full rationale.
