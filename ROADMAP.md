@@ -83,7 +83,11 @@ part of a `1.1.0` release is a separate decision — see that plan.
 
 ### Milestone B — Autocomplete & Templates
 
-- [ ] Tab autocomplete from declared accounts + all posting accounts in the loaded journal
+Phase 4a (name completion) implemented in `planning/next-release-phase-plan.md`.
+Phase 4b (`Alt+P`/`Alt+N` — historical-account/template suggestion) was
+deliberately deferred there to keep scope bounded; still open.
+
+- [x] Tab autocomplete from declared accounts + all posting accounts in the loaded journal (and declared/used payees, for the transaction header)
 - [ ] `Alt+P` / `Alt+N` — insert previous/next matching transaction template
   (Emacs `ledger-mode` convention)
 

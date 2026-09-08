@@ -15,7 +15,7 @@
 | `Shift+PgDown` | Jump to **next** match (when search bar is open); otherwise jump to next transaction header |
 | `Shift+PgUp` | Jump to **previous** match (when search bar is open); otherwise jump to previous transaction header |
 | `Ctrl+C` | While the search input has focus: copies the currently highlighted match's text to the clipboard. If you've selected text inside the search box itself instead, that selection is copied as normal. |
-| `Escape` | Close search bar (or unfocus editor) |
+| `Escape` | Dismiss the Tab-autocomplete suggestion bar if showing; else close the search bar; else unfocus the editor — checked in that order. |
 
 Search requires at least 2 characters. Matches are highlighted in the editor: dim background for all matches, bright background for the current match. The counter shows "N of M" (or "No matches"). Jumping to a match keeps at least 4 lines of context visible above and below the cursor, matching transaction navigation (`Shift+PgUp`/`Shift+PgDown`).
 
@@ -58,12 +58,20 @@ The popup has four fields, all optional — leave any blank to not filter on tha
 |----------|--------|
 | `Ctrl+R` | **Single transaction**: 3-state cycle: uncleared → pending (`!`) → cleared (`*`) → uncleared. **Multi-transaction selection**: if all selected are cleared → all become uncleared; otherwise → all become cleared (`*`). |
 
-## Panel Focus Cycling
+## Tab Autocomplete
 
 | Shortcut | Action |
 |----------|--------|
-| `Tab` | Cycle focus: Text editor → Text editor (only one panel now) |
-| `Shift+Tab` | Reverse cycle |
+| `Tab` | Complete the account or payee name at the cursor. Press again to cycle to the next match. Anywhere else, falls through to ordinary focus-cycling (there's currently only one focusable panel, so this is rarely noticeable). |
+| `Escape` | Dismiss the suggestion bar, if showing (checked before search-bar dismissal / unfocus — see the Search section). |
+| `Shift+Tab` | Reverse focus-cycle (unaffected by autocomplete). |
+
+Works in two places:
+
+- **Posting line, while typing the account name** (before the amount) — suggests from every account declared with an `account` directive plus every account actually used on a posting anywhere in the journal.
+- **Transaction header, at or past the payee/description field** (after the date and any `*`/`!`/`(CODE)`) — suggests from every declared `payee` directive plus every transaction description in the journal.
+
+Suggestions come from a snapshot index rebuilt on file load and after each `Ctrl+S` save — not on every keystroke, so text you've typed but not yet saved won't complete against itself until you save. The first match is inserted immediately; the suggestion bar at the bottom of the editor shows the full candidate list and highlights the current one. This intentionally cycles like shell tab-completion (press `Tab` repeatedly to step through matches) rather than a `Up`/`Down`-navigable dropdown — `Up`/`Down` stay ordinary cursor-movement keys everywhere in the editor, including while the search bar has focus.
 
 ## Transaction Block Selection & Navigation
 
@@ -77,7 +85,7 @@ The popup has four fields, all optional — leave any blank to not filter on tha
 
 | Shortcut | Action |
 |----------|--------|
-| `Enter` | When cursor is on a transaction header (and **not** at column 0) or posting line, the new line is auto-indented with 4 spaces. At column 0 of a header, Enter inserts a plain newline (useful for adding blank lines between transactions). TAB is reserved for focus cycling. |
+| `Enter` | When cursor is on a transaction header (and **not** at column 0) or posting line, the new line is auto-indented with 4 spaces. At column 0 of a header, Enter inserts a plain newline (useful for adding blank lines between transactions). `Tab` is reserved for autocomplete — see [Tab Autocomplete](#tab-autocomplete) above. |
 | `Ctrl+G` | **Single cursor**: duplicate the current transaction block to end of file with today's date. **Multi-block selection** (from repeated `Ctrl+T`): duplicate all selected transaction blocks to end of file, each with today's date. Fully undoable with `Ctrl+Z`. |
 | `Ctrl+D` | Insert today's date at the cursor position |
 | `Ctrl+Z` | Undo. Reverses custom commands (CommandHistory) first; if none, falls through to native TextArea undo for regular text edits. |

@@ -12,6 +12,8 @@ planning/next-release-phase-plan.md):
   - DateShiftMixin (date_shift.py) — Shift+Up/Down date-field shifting
   - ViewFilterMixin (view_filter.py) — Ctrl+L cleared/uncleared cycle
   - TransactionBlocksMixin (transaction_blocks.py) — Ctrl+T/Ctrl+G/Ctrl+R
+  - AutocompleteMixin (autocomplete.py) — Tab account/payee autocomplete
+    (Phase 4a)
 """
 
 from __future__ import annotations
@@ -28,6 +30,9 @@ from textual.widget import Widget
 from textual.widgets import TextArea
 
 from ledgerkit_editor.highlighting.highlighter import LineKind
+from ledgerkit_editor.utils.journal_index import JournalIndex
+from ledgerkit_editor.widgets.autocomplete import AutocompleteMixin
+from ledgerkit_editor.widgets.autocomplete_popup import AutocompletePopup
 from ledgerkit_editor.widgets.date_shift import DateShiftMixin
 from ledgerkit_editor.widgets.ledger_textarea import LedgerTextArea
 from ledgerkit_editor.widgets.transaction_blocks import TransactionBlocksMixin
@@ -69,7 +74,9 @@ def _account_at_cursor(textarea: TextArea) -> str | None:
     return _extract_account_from_line(lines[row])
 
 
-class JournalEditor(DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, Widget):
+class JournalEditor(
+    DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, AutocompleteMixin, Widget
+):
     """Full-text editor for hledger journal files.
 
     Loads the raw journal file into a LedgerTextArea. Ctrl+S validates, sorts
@@ -116,6 +123,11 @@ class JournalEditor(DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, Wid
         # Falls through to selection when cursor is not on a date field.
         Binding("shift+up", "date_shift_up", "Date up", show=False, priority=True),
         Binding("shift+down", "date_shift_down", "Date down", show=False, priority=True),
+        # Tab autocomplete — Tab is otherwise a near-no-op in this single-pane
+        # editor (see AutocompleteMixin's docstring), so it's safe to reclaim
+        # here; action_autocomplete() falls through to normal focus-cycling
+        # when there's nothing to complete.
+        Binding("tab", "autocomplete", "Autocomplete", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -174,15 +186,20 @@ class JournalEditor(DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, Wid
         # Ctrl+O criteria filter predicate; None means Ctrl+L's fixed
         # cleared/uncleared cycle applies instead. See ViewFilterMixin.
         self._active_predicate = None
+        # Tab-autocomplete state (AutocompleteMixin, autocomplete.py). Index
+        # is rebuilt on load and after each save, not per keystroke.
+        self._journal_index: JournalIndex = JournalIndex()
+        self._autocomplete_anchor: tuple[int, int] | None = None
         # (commodity styles are now computed per-save from the current text)
 
     def compose(self) -> ComposeResult:
-        """Render ViewFilterBar, LedgerTextArea, and hidden SearchBar."""
+        """Render ViewFilterBar, LedgerTextArea, hidden SearchBar and AutocompletePopup."""
         from ledgerkit_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
 
         yield ViewFilterBar()
         yield LedgerTextArea(id="journal_textarea", show_line_numbers=True)
         yield SearchBar(id="search-bar")
+        yield AutocompletePopup()
 
     def on_mount(self) -> None:
         """Load the raw journal text into the TextArea and focus it."""
@@ -190,6 +207,7 @@ class JournalEditor(DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, Wid
         textarea = self.query_one("#journal_textarea", TextArea)
         textarea.load_text(text)
         self._last_saved_text = text
+        self.rebuild_journal_index()
         textarea.focus()
         # Defer the cursor seek: move_cursor here would set the document
         # position correctly but scroll_cursor_visible is a no-op before the
@@ -270,8 +288,14 @@ class JournalEditor(DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, Wid
             textarea.action_redo()
 
     def action_blur_editor(self) -> None:
-        """Escape: dismiss search bar if open, else unfocus."""
+        """Escape: dismiss autocomplete popup, else search bar, else unfocus."""
+        from ledgerkit_editor.widgets.autocomplete_popup import AutocompletePopup  # noqa: PLC0415
         from ledgerkit_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        popup = self.query_one(AutocompletePopup)
+        if popup.is_showing:
+            self.dismiss_autocomplete()
+            return
 
         search_bar = self.query_one("#search-bar", SearchBar)
         if search_bar.display:
@@ -351,6 +375,7 @@ class JournalEditor(DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, Wid
             self.app.notify(err.message, severity="warning")
 
         self._last_saved_text = sorted_text
+        self.rebuild_journal_index()
         self.post_message(self.SaveCompleted())
         self.post_message(self.FileModifiedChanged(modified=False))
         self.app.notify("Saved", severity="information")

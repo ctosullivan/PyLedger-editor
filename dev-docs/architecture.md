@@ -22,7 +22,7 @@ src/ledgerkit_editor/
 │   │                            loads raw journal text; Ctrl+S sorts+saves;
 │   │                            BINDINGS, message classes, cursor tracking —
 │   │                            deliberately thin, delegates larger concerns
-│   │                            to the three mixins below (Module Size Rule
+│   │                            to the four mixins below (Module Size Rule
 │   │                            split, Phase 2 of the next-release plan)
 │   ├── date_shift.py          — DateShiftMixin: Shift+Up/Down date-field
 │   │                            shifting (transaction headers and P price
@@ -31,6 +31,18 @@ src/ledgerkit_editor/
 │   ├── transaction_blocks.py  — TransactionBlocksMixin: Ctrl+T (select/
 │   │                            extend block), Ctrl+G (duplicate to end),
 │   │                            Ctrl+R (single/bulk cleared toggle)
+│   ├── autocomplete.py        — AutocompleteMixin: Tab account/payee
+│   │                            autocomplete (Phase 4a), bash-style
+│   │                            Tab-cycling rather than a Up/Down dropdown
+│   │                            — see the module docstring for why; also
+│   │                            _completion_context(), the pure function
+│   │                            deciding whether/what to complete at the
+│   │                            cursor
+│   ├── autocomplete_popup.py  — AutocompletePopup: bottom-docked, never-
+│   │                            focusable suggestion bar (same docked-and-
+│   │                            hidden pattern as search_bar.py, not
+│   │                            filter_popup.py's floating overlay — driven
+│   │                            entirely by AutocompleteMixin)
 │   ├── view_filter.py         — ViewFilterMixin: shared parse → hide → merge
 │   │                            edits back → restore engine for BOTH Ctrl+L
 │   │                            (fixed cleared/uncleared cycle) and Ctrl+O
@@ -77,6 +89,13 @@ src/ledgerkit_editor/
     │                             build_transaction_predicate() is what
     │                             FilterPopup ultimately hands to
     │                             ViewFilterMixin.apply_criteria_filter()
+    ├── journal_index.py        — JournalIndex + build_journal_index(): account
+    │                             and payee name index for Tab autocomplete,
+    │                             from Journal.declared_accounts/declared_payees
+    │                             plus every posting account / transaction
+    │                             description seen — a snapshot, rebuilt by
+    │                             JournalEditor on load and after each save,
+    │                             not per keystroke
     ├── ledger_io.py            — Thin wrappers over ledgerkit.load()/journal_to_text();
     │                             align_posting_amounts() (column-52 amount formatting);
     │                             split_journal_segments() (directive/comment preservation)
