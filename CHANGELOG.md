@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-09
+
 ### Added
 - `Ctrl+O`'s Date From/Date To fields now recognise a much wider range of smart dates: calendar-week phrases (`this week`, `last week`, weeks start Monday), `this month` (alongside the existing `last month`), `this year` (alongside `last year`), a year-month shorthand for a whole calendar month (`2026-02`, or unpadded `2026-2`), and a month name with or without a year (`september`, `sep 2026`, `September 2026` — a bare month name defaults to the current year). All of these are bounded periods, so used alone in one field they auto-fill the other side the same way `last month`/`ytd`/`q1`-`q4` already did.
   **Human:** "the Filter should recognise calendar months and smart dates such as this week, last week, this month, last year, September 2026, 2026-02 etc."
