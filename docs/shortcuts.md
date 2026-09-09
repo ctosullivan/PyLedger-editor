@@ -37,9 +37,9 @@ The view filter changes what the editor shows without hiding any data from disk:
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+O` | Open / close the filter popup. Closing it (a second `Ctrl+O`, or `Escape`) leaves any already-applied filter active — it only dismisses the popup, not the filter. |
+| `Ctrl+O` | Open / close the filter popup. Closing it (a second `Ctrl+O`, or `Escape`) leaves any already-applied filter active — it only dismisses the popup, not the filter. Any text typed into the fields (applied or not) is also kept, and restored the next time the popup is opened. |
 | `Enter` (in any field) | Apply the filter — same as clicking **Apply** |
-| `Tab` (in the Account or Payee field) | Complete the field's value against known account/payee names — press again to cycle to the next match. See [Tab Autocomplete](#tab-autocomplete) below; this is the same convention, just applied to a whole field's value instead of a partial token within a line. `Tab` in the Date fields is unaffected (ordinary focus-cycling). |
+| `Tab` (in the Account or Payee field) | If the field has text, complete it against known account/payee names — press again to cycle to the next match. See [Tab Autocomplete](#tab-autocomplete) below; this is the same convention, just applied to a whole field's value instead of a partial token within a line. If the field is **empty**, `Tab` just moves to the next field as usual — an empty prefix would otherwise match every known name, which would hijack the field rather than skip it. `Tab` in the Date fields is unaffected (ordinary focus-cycling). |
 
 The popup has four fields, all optional — leave any blank to not filter on that dimension:
 

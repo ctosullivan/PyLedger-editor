@@ -544,6 +544,17 @@ class AutocompletePopup(Widget):
 class FilterPopup(Widget):
     """Ctrl+O overlay — date-range, account, and payee filter fields."""
 
+    def __init__(
+        self, *args: object, initial_values: dict[str, str] | None = None, **kwargs: object,
+    ) -> None:
+        """Pre-fills each Input from initial_values (keyed by field id:
+        "date-from", "date-to", "account", "payee") on compose(). Passed
+        by LedgerApp.action_toggle_filter() from the previous popup's
+        field_values() so a close/reopen doesn't lose in-progress text."""
+
+    def field_values(self) -> dict[str, str]:
+        """Current text in every input field, keyed by field id."""
+
     class FilterApplied(Message):
         """Carries a pre-validated predicate (Callable[[Transaction], bool]),
         built via query_match.build_transaction_predicate() — not a raw Query.
@@ -562,9 +573,11 @@ class FilterPopup(Widget):
         against JournalEditor._journal_index (read live via
         self.app.query_one), cycling to the next match on repeated presses.
         Falls through to ordinary focus-cycling for any other focused
-        field, or when there's no match — same convention as
-        AutocompleteMixin.action_autocomplete, applied to a single-line
-        Input's entire value instead of a token within a larger line."""
+        field, when the field is empty (an empty prefix would otherwise
+        match every known name), or when there's no match — same
+        convention as AutocompleteMixin.action_autocomplete, applied to a
+        single-line Input's entire value instead of a token within a
+        larger line."""
 ```
 
 ---

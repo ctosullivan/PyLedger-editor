@@ -98,26 +98,64 @@ class FilterPopup(Widget):
     class FilterCleared(Message):
         """Posted when the user clears the active filter (Clear button)."""
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
+    def __init__(
+        self,
+        *args: object,
+        initial_values: dict[str, str] | None = None,
+        **kwargs: object,
+    ) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         # (field_id, candidates, selected_index) for Tab-cycling in
         # action_complete_field() — None means no completion in progress.
         self._field_completion: tuple[str, list[str], int] | None = None
+        # Pre-fills each Input on compose() — LedgerApp passes back
+        # whatever field_values() returned just before the popup was last
+        # closed, so a close/reopen (Ctrl+O twice) doesn't lose in-progress
+        # typing. Missing/unknown keys just leave that field empty.
+        self._initial_values = initial_values or {}
 
     def compose(self) -> ComposeResult:
         """Render filter input fields and Apply/Clear buttons."""
         yield Label("Transaction Filter  (Ctrl+O to close)", id="filter-title")
         yield Label("Date from:")
-        yield Input(placeholder="e.g. last month / sep 2026 / 2026-02 / 2024-01-01", id="date-from")
+        yield Input(
+            placeholder="e.g. last month / sep 2026 / 2026-02 / 2024-01-01",
+            id="date-from",
+            value=self._initial_values.get("date-from", ""),
+        )
         yield Label("Date to:")
-        yield Input(placeholder="e.g. today / this week / 2024-12-31", id="date-to")
+        yield Input(
+            placeholder="e.g. today / this week / 2024-12-31",
+            id="date-to",
+            value=self._initial_values.get("date-to", ""),
+        )
         yield Label("Account:")
-        yield Input(placeholder="substring or /regex/, e.g. ^expenses:food", id="account")
+        yield Input(
+            placeholder="substring or /regex/, e.g. ^expenses:food",
+            id="account",
+            value=self._initial_values.get("account", ""),
+        )
         yield Label("Payee:")
-        yield Input(placeholder="substring or regex", id="payee")
+        yield Input(
+            placeholder="substring or regex",
+            id="payee",
+            value=self._initial_values.get("payee", ""),
+        )
         with Horizontal(id="filter-buttons"):
             yield Button("Apply", id="btn-apply", variant="primary")
             yield Button("Clear", id="btn-clear")
+
+    def field_values(self) -> dict[str, str]:
+        """Current text in every input field, keyed by field id.
+
+        Read by LedgerApp.action_toggle_filter() just before it removes
+        this popup, so the values can be handed to the next FilterPopup's
+        initial_values — see __init__.
+        """
+        return {
+            field_id: self.query_one(f"#{field_id}", Input).value
+            for field_id in ("date-from", "date-to", "account", "payee")
+        }
 
     def on_mount(self) -> None:
         """Focus the first input field so Escape and keyboard entry work immediately."""
@@ -137,9 +175,11 @@ class FilterPopup(Widget):
 
         Falls through to ordinary Tab focus-cycling when: the focused
         widget isn't the Account or Payee Input (e.g. a Date field, or
-        nothing), JournalEditor can't be found, or there are no matches
-        for the current text — matching AutocompleteMixin's own
-        no-match-falls-through behaviour.
+        nothing), the field is empty (nothing typed to complete — an
+        empty prefix would otherwise match every known name, which reads
+        as the field being hijacked rather than skipped), JournalEditor
+        can't be found, or there are no matches for the current text —
+        matching AutocompleteMixin's own no-match-falls-through behaviour.
         """
         from ledgerkit_editor.widgets.transaction_table import JournalEditor  # noqa: PLC0415
 
@@ -149,6 +189,11 @@ class FilterPopup(Widget):
             self.app.action_focus_next()
             return
         input_widget = focused
+
+        if not input_widget.value:
+            self._field_completion = None
+            self.app.action_focus_next()
+            return
 
         if (
             self._field_completion is not None

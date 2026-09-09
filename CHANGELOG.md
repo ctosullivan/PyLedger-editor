@@ -6,6 +6,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-09-09
+
+### Fixed
+- `Ctrl+O` filter popup: pressing `Tab` in an **empty** Account or Payee field now moves focus to the next field, instead of autocompleting to the first known account/payee name. Root cause: an empty prefix matches every entry in the index (by design, for the non-empty case), so `action_complete_field()` was treating "nothing typed yet" the same as "match everything."
+  **Human:** "in the filter view if the account or payee field is empty, tab should move to the next field."
+  **Claude:** `FilterPopup.action_complete_field()` now checks `input_widget.value` and falls through to `action_focus_next()` before attempting any completion when the field is empty. 2 new tests.
+- `Ctrl+O` filter popup now retains its field text (typed but not yet applied, or already applied) across a close/reopen — previously closing the popup (`Ctrl+O` or `Escape`) and reopening it always started every field blank again, even though closing was already documented to leave an *applied* filter untouched; the fields themselves just weren't part of that state.
+  **Human:** "When the filter view is closed and then opened again it should retain the current filters."
+  **Claude:** Added `FilterPopup.field_values()` (reads all four Input values) and an `initial_values` constructor parameter (pre-fills them on `compose()`). `LedgerApp` now holds `_filter_field_values`, captured from the popup via `field_values()` right before `action_toggle_filter()` removes it, and passed back in as `initial_values` on the next open. 3 new tests.
+
 ## [1.1.0] — 2026-09-09
 
 ### Added

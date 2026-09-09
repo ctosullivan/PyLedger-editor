@@ -12,7 +12,7 @@ from ledgerkit_editor.app import LedgerApp
 from ledgerkit_editor.widgets.filter_popup import FilterPopup
 from ledgerkit_editor.widgets.transaction_table import JournalEditor
 from ledgerkit_editor.widgets.view_filter_bar import ViewFilterBar
-from textual.widgets import Input, TextArea
+from textual.widgets import Button, Input, TextArea
 
 THREE_TXN_JOURNAL = (
     "2024-01-10 * Opening balances\n"
@@ -517,6 +517,47 @@ class TestFilterPopupAutocomplete:
 
             assert account_field.value == "zzz_no_such_account"
 
+    async def test_tab_on_empty_account_field_moves_focus(self, tmp_path: Path) -> None:
+        """An empty prefix would otherwise match every known account —
+        Tab on an untouched field should move on, not hijack it."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            account_field = popup.query_one("#account", Input)
+            account_field.focus()
+            await pilot.pause()
+
+            await pilot.press("tab")
+            await pilot.pause()
+
+            assert account_field.value == ""
+            assert app.focused is not account_field
+            assert app.focused is popup.query_one("#payee", Input)
+
+    async def test_tab_on_empty_payee_field_moves_focus(self, tmp_path: Path) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            payee_field = popup.query_one("#payee", Input)
+            payee_field.focus()
+            await pilot.pause()
+
+            await pilot.press("tab")
+            await pilot.pause()
+
+            assert payee_field.value == ""
+            assert app.focused is not payee_field
+
     async def test_tab_on_date_field_does_not_complete(self, tmp_path: Path) -> None:
         """Only Account/Payee complete; Date fields fall through untouched."""
         journal = tmp_path / "test.journal"
@@ -576,6 +617,77 @@ class TestFilterAppMessageWiring:
             textarea = editor.query_one("#journal_textarea", TextArea)
             assert "Rent" in textarea.text
             assert "Groceries" not in textarea.text
+
+
+class TestFilterPopupFieldPersistence:
+    """Closing the popup (Ctrl+O or Escape) only dismisses it — it must not
+    discard in-progress field text either, the same way it already doesn't
+    discard an applied filter. LedgerApp._filter_field_values carries the
+    text across the close/reopen (see action_toggle_filter)."""
+
+    async def test_reopening_restores_unapplied_field_text(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _open_filter_and_fill(
+                pilot, account="expenses:rent", payee="Rent"
+            )
+            # Close without ever pressing Apply. Two pauses: remove() is
+            # itself async (AwaitRemove), so a single pause isn't always
+            # enough to guarantee it's settled before the query below.
+            app.action_toggle_filter()
+            await pilot.pause()
+            await pilot.pause()
+            assert not app.query(FilterPopup)
+
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            assert popup.query_one("#account", Input).value == "expenses:rent"
+            assert popup.query_one("#payee", Input).value == "Rent"
+
+    async def test_reopening_restores_text_alongside_an_applied_filter(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _open_filter_and_fill(pilot, account="expenses:rent")
+            app.query_one(FilterPopup).apply_filter()
+            await pilot.pause()
+
+            app.action_toggle_filter()
+            await pilot.pause()
+            app.action_toggle_filter()
+            await pilot.pause()
+
+            popup = app.query_one(FilterPopup)
+            assert popup.query_one("#account", Input).value == "expenses:rent"
+
+    async def test_clearing_then_reopening_stays_empty(self, tmp_path: Path) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _open_filter_and_fill(pilot, account="expenses:rent")
+            popup = app.query_one(FilterPopup)
+            popup.query_one("#btn-clear", Button).press()
+            await pilot.pause()
+
+            app.action_toggle_filter()
+            await pilot.pause()
+            app.action_toggle_filter()
+            await pilot.pause()
+
+            popup = app.query_one(FilterPopup)
+            assert popup.query_one("#account", Input).value == ""
 
 
 class TestFilterPopupEditPersistence:
