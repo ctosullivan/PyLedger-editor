@@ -50,7 +50,7 @@ The popup has four fields, all optional — leave any blank to not filter on tha
 
 **Clear** restores the full journal and empties the popup's own input fields.
 
-`Ctrl+O`'s criteria filter and `Ctrl+L`'s cleared/uncleared cycle are **mutually exclusive** — applying one automatically exits the other first. The status bar at the top of the editor shows which (if either) is currently active.
+`Ctrl+O`'s criteria filter and `Ctrl+L`'s cleared/uncleared cycle **combine** — active together, they narrow the view to transactions matching *both* (e.g. "Cleared only" + an account filter shows only cleared transactions in that account), not just whichever was applied most recently. Either can be adjusted or cleared independently of the other: clearing the `Ctrl+O` filter leaves any active `Ctrl+L` mode in place, and cycling `Ctrl+L` back to All leaves an active `Ctrl+O` filter in place. The status bar at the top of the editor describes whichever combination is currently active (e.g. "View: Cleared only + Filtered (Ctrl+O)").
 
 ## Cleared / Status Toggle
 

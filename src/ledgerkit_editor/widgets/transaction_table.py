@@ -185,15 +185,16 @@ class JournalEditor(
         self._current_account: str | None = None
         self._last_saved_text: str = ""
         self._command_history: CommandHistory = CommandHistory()
-        # View filter state (read/written by ViewFilterMixin, view_filter.py)
-        self._view_filter_mode: int = 0          # 0=All, nonzero=filtered
+        # View filter state (read/written by ViewFilterMixin, view_filter.py).
+        # Ctrl+L's mode and Ctrl+O's predicate are independent dimensions
+        # that combine with AND — see ViewFilterMixin._filter_is_active.
+        self._view_filter_mode: int = 0          # 0=All, 1=Cleared, 2=Unreconciled
         self._filter_journal: object | None = None
         self._filter_visible_indices: list[int] = []
         # Non-transaction blocks (directives, comments, blank-line separators)
         # captured when entering a filter so they survive the mode-0 restore.
         self._filter_non_txn_blocks: list[str] = []
-        # Ctrl+O criteria filter predicate; None means Ctrl+L's fixed
-        # cleared/uncleared cycle applies instead. See ViewFilterMixin.
+        # Ctrl+O criteria filter predicate; None means no criteria filter.
         self._active_predicate = None
         # Tab-autocomplete state (AutocompleteMixin, autocomplete.py). Index
         # is rebuilt on load and after each save, not per keystroke.
@@ -327,8 +328,9 @@ class JournalEditor(
         import ledgerkit  # noqa: PLC0415
 
         # Merge filtered edits into full journal before saving (covers both
-        # a Ctrl+L cleared/uncleared filter and a Ctrl+O criteria filter).
-        if self._view_filter_mode != 0:
+        # a Ctrl+L cleared/uncleared filter and a Ctrl+O criteria filter,
+        # combined or either alone — see ViewFilterMixin._filter_is_active).
+        if self._filter_is_active:
             ta = self.query_one("#journal_textarea", LedgerTextArea)
             self._merge_filtered_edits(ta)
             self._active_predicate = None

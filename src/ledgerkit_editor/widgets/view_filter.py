@@ -2,13 +2,14 @@
 the Ctrl+O criteria filter (Phase 3 of the next-release plan).
 
 Split out of transaction_table.py (Phase 2) once that module passed the
-Module Size Rule threshold. Both Ctrl+L and Ctrl+O share the same
-parse-hide-merge-restore engine — only how "which transactions are visible"
-is decided differs: Ctrl+L uses the fixed cleared/uncleared check,
-Ctrl+O uses an arbitrary predicate built by
-ledgerkit_editor.utils.query_match.build_transaction_predicate(). The two
-are mutually exclusive: activating either one first exits the other (see
-apply_criteria_filter / action_cycle_view_filter).
+Module Size Rule threshold. Ctrl+L and Ctrl+O are two INDEPENDENT
+dimensions that COMBINE with AND when both are active — e.g. "Cleared
+only" narrowed further by a Ctrl+O account filter shows only transactions
+that are both cleared AND match the account. Either can be adjusted or
+cleared without disturbing the other. (Originally implemented as mutually
+exclusive in Phase 3 — reversed 2026-09-09 per UAT feedback; see
+planning/next-release-phase-plan.md's Phase 3 "Interaction with Ctrl+L"
+note for the history.)
 """
 
 from __future__ import annotations
@@ -30,111 +31,104 @@ class ViewFilterMixin:
     since mixins here don't own __init__ — see date_shift.DateShiftMixin for
     the same convention):
 
-        self._view_filter_mode: int = 0          # 0=All, nonzero=filtered
+        self._view_filter_mode: int = 0          # 0=All, 1=Cleared, 2=Unreconciled
+                                                   # — Ctrl+L's own dimension ONLY;
+                                                   #   independent of _active_predicate
         self._filter_journal: object | None = None
         self._filter_visible_indices: list[int] = []
         self._filter_non_txn_blocks: list[str] = []
         self._active_predicate: Callable[[object], bool] | None = None
-        # ^ Ctrl+O sets this; when set, it overrides the cleared/uncleared
-        #   check for _view_filter_mode != 0 (see _apply_view_filter). None
-        #   means "no criteria filter active" — Ctrl+L's fixed 3-mode cycle
-        #   applies as before.
+        # ^ Ctrl+O's own dimension. None means no criteria filter active.
+        #   Combines (AND) with _view_filter_mode in _apply_view_filter — see
+        #   the _filter_is_active property for what "any filter active" means.
     """
+
+    @property
+    def _filter_is_active(self) -> bool:
+        """True if either dimension (Ctrl+L's mode or Ctrl+O's predicate)
+        is currently filtering the view."""
+        return self._view_filter_mode != 0 or self._active_predicate is not None
 
     def action_cycle_view_filter(self) -> None:
         """Cycle editor view: All → Cleared → Unreconciled → All (Ctrl+L).
 
-        If a Ctrl+O criteria filter is active, this first exits it (restoring
-        the full journal) and starts a fresh Ctrl+L cycle — the two filter
-        mechanisms are mutually exclusive.
+        Combines (AND) with any active Ctrl+O criteria filter rather than
+        replacing it — the two dimensions are independent (see class
+        docstring). Snapshots the full journal only when entering filtered
+        mode from a state where NEITHER dimension was active; otherwise
+        merges pending edits before recomputing visibility.
         """
-        import ledgerkit  # noqa: PLC0415
-
         textarea = self.query_one("#journal_textarea", LedgerTextArea)
 
-        if self._active_predicate is not None:
-            self._exit_active_filter(textarea)
-
-        if self._view_filter_mode == 0:
-            # Entering a filtered view — snapshot the full journal and the
-            # non-transaction blocks so directives/comments survive mode-0 restore.
-            self._filter_journal, _ = ledgerkit.parse_string_lenient(textarea.text)
-            from ledgerkit_editor.utils.ledger_io import split_journal_segments  # noqa: PLC0415
-            self._filter_non_txn_blocks, _ = split_journal_segments(
-                textarea.text, self._filter_journal.transactions  # type: ignore[union-attr]
-            )
-        else:
-            # Already filtered — merge edits before switching.
+        if self._filter_is_active:
             self._merge_filtered_edits(textarea)
+        else:
+            self._snapshot_journal(textarea)
 
         self._view_filter_mode = (self._view_filter_mode + 1) % 3
         self._apply_view_filter(textarea)
 
     def apply_criteria_filter(self, predicate: Callable[[object], bool]) -> None:
-        """Enter (or replace) a Ctrl+O criteria-filter view using predicate.
+        """Set (or replace) the Ctrl+O criteria predicate.
 
-        If a Ctrl+L cleared/uncleared filter is active, or a different
-        criteria filter was already active, this first exits it (restoring
-        the full journal, merging any edits) before applying the new one.
+        Combines (AND) with any active Ctrl+L cleared/uncleared mode
+        rather than replacing it. Snapshots the full journal only when
+        entering filtered mode from a state where NEITHER dimension was
+        active; otherwise merges pending edits before recomputing
+        visibility with the new predicate.
 
         Args:
             predicate: called with each ledgerkit Transaction; True keeps it
                 visible. Typically built by
                 ledgerkit_editor.utils.query_match.build_transaction_predicate().
         """
-        import ledgerkit  # noqa: PLC0415
-
         textarea = self.query_one("#journal_textarea", LedgerTextArea)
 
-        if self._view_filter_mode != 0 or self._active_predicate is not None:
-            self._exit_active_filter(textarea)
+        if self._filter_is_active:
+            self._merge_filtered_edits(textarea)
+        else:
+            self._snapshot_journal(textarea)
 
-        self._filter_journal, _ = ledgerkit.parse_string_lenient(textarea.text)
-        from ledgerkit_editor.utils.ledger_io import split_journal_segments  # noqa: PLC0415
-        self._filter_non_txn_blocks, _ = split_journal_segments(
-            textarea.text, self._filter_journal.transactions  # type: ignore[union-attr]
-        )
         self._active_predicate = predicate
-        # Any nonzero value marks "a filter is showing a subset" for
-        # action_save's merge-before-save check; the actual visibility rule
-        # for mode != 0 is _active_predicate when set, not this number.
-        self._view_filter_mode = 1
         self._apply_view_filter(textarea)
 
     def clear_criteria_filter(self) -> None:
-        """Exit an active Ctrl+O criteria filter, restoring the full journal.
+        """Remove just the Ctrl+O criteria predicate.
 
+        Any active Ctrl+L cleared/uncleared mode is left untouched — this
+        only fully restores the full journal if Ctrl+L was also at "All".
         No-op if no criteria filter is currently active.
         """
         if self._active_predicate is None:
             return
         textarea = self.query_one("#journal_textarea", LedgerTextArea)
-        self._exit_active_filter(textarea)
-
-    def _exit_active_filter(self, textarea: LedgerTextArea) -> None:
-        """Merge edits and restore the full journal, clearing all filter state.
-
-        Shared by action_cycle_view_filter and apply_criteria_filter/
-        clear_criteria_filter whenever either mechanism needs to fully exit
-        whatever filter (of either kind) is currently active before doing
-        anything else.
-        """
         self._merge_filtered_edits(textarea)
         self._active_predicate = None
-        self._view_filter_mode = 0
         self._apply_view_filter(textarea)
 
-    def _apply_view_filter(self, textarea: LedgerTextArea) -> None:
-        """Rebuild textarea content from _filter_journal for the current mode.
+    def _snapshot_journal(self, textarea: LedgerTextArea) -> None:
+        """Parse and snapshot the full journal when entering filtered mode
+        from a state where neither Ctrl+L nor Ctrl+O was active — shared by
+        action_cycle_view_filter and apply_criteria_filter."""
+        import ledgerkit  # noqa: PLC0415
+        from ledgerkit_editor.utils.ledger_io import split_journal_segments  # noqa: PLC0415
 
-        Both branches below re-apply the same commodity-formatting and
-        column-alignment pass action_save() uses (utils.commodity_format /
-        utils.ledger_io.align_posting_amounts), so that entering or exiting
-        a filter doesn't itself change the document's formatting or trip
-        the modified indicator — UAT found this: opening the criteria
-        filter with every field blank was reformatting amounts and marking
-        the file "modified" purely from the parse -> transaction_to_text()
-        round-trip, which doesn't preserve source spacing on its own.
+        self._filter_journal, _ = ledgerkit.parse_string_lenient(textarea.text)
+        self._filter_non_txn_blocks, _ = split_journal_segments(
+            textarea.text, self._filter_journal.transactions  # type: ignore[union-attr]
+        )
+
+    def _apply_view_filter(self, textarea: LedgerTextArea) -> None:
+        """Rebuild textarea content for the current combined filter state.
+
+        Restores the full journal when NEITHER dimension is active.
+        Otherwise shows transactions matching BOTH the Ctrl+L cleared-mode
+        (if != 0) AND the Ctrl+O predicate (if set) — an AND combination,
+        not either replacing the other. Both branches re-apply the same
+        commodity-formatting and column-alignment pass action_save() uses,
+        so entering/exiting a filter doesn't itself change the document's
+        formatting or trip the modified indicator (UAT: an empty/no-op
+        filter round-trip was previously reformatting amounts).
         """
         import ledgerkit  # noqa: PLC0415
         from ledgerkit_editor.utils.commodity_format import (  # noqa: PLC0415
@@ -145,7 +139,7 @@ class ViewFilterMixin:
 
         journal = self._filter_journal
 
-        if self._view_filter_mode == 0:
+        if not self._filter_is_active:
             # Restore full journal, preserving directives/comments/blank-line
             # separators captured in _filter_non_txn_blocks at filter entry.
             if journal is not None:
@@ -177,17 +171,19 @@ class ViewFilterMixin:
         else:
             if journal is None:
                 return
-            if self._active_predicate is not None:
-                visible: list[tuple[int, object]] = [
-                    (i, tx) for i, tx in enumerate(journal.transactions)
-                    if self._active_predicate(tx)
-                ]
-            else:
-                want_cleared = self._view_filter_mode == 1
-                visible = [
-                    (i, tx) for i, tx in enumerate(journal.transactions)
-                    if (tx.cleared if want_cleared else not tx.cleared)  # type: ignore[union-attr]
-                ]
+
+            def _matches(tx: object) -> bool:
+                if self._view_filter_mode != 0:
+                    want_cleared = self._view_filter_mode == 1
+                    if bool(tx.cleared) != want_cleared:  # type: ignore[union-attr]
+                        return False
+                if self._active_predicate is not None and not self._active_predicate(tx):
+                    return False
+                return True
+
+            visible: list[tuple[int, object]] = [
+                (i, tx) for i, tx in enumerate(journal.transactions) if _matches(tx)
+            ]
             self._filter_visible_indices = [i for i, _ in visible]
             parts = [ledgerkit.transaction_to_text(tx) for _, tx in visible]
             filtered_text = "\n".join(parts)
@@ -227,12 +223,10 @@ class ViewFilterMixin:
         self._filter_journal.transactions = all_txs  # type: ignore[union-attr]
 
     def _update_filter_bar(self) -> None:
-        """Refresh the ViewFilterBar label after a filter change."""
+        """Refresh the ViewFilterBar label to describe whichever
+        dimension(s) are currently active, combined."""
         try:
             bar = self.query_one(ViewFilterBar)
-            if self._active_predicate is not None:
-                bar.set_label("View: Filtered (Ctrl+O)")
-            else:
-                bar.set_mode(self._view_filter_mode)
         except Exception:  # noqa: BLE001
-            pass
+            return
+        bar.set_combined(self._view_filter_mode, self._active_predicate is not None)

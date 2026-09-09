@@ -45,12 +45,14 @@ src/ledgerkit_editor/
 │   ├── view_filter.py         — ViewFilterMixin: shared parse → hide → merge
 │   │                            edits back → restore engine for BOTH Ctrl+L
 │   │                            (fixed cleared/uncleared cycle) and Ctrl+O
-│   │                            (arbitrary predicate); the two are mutually
-│   │                            exclusive — apply_criteria_filter() /
-│   │                            action_cycle_view_filter() each exit the
-│   │                            other before taking over
-│   ├── view_filter_bar.py     — ViewFilterBar: 1-row status bar showing
-│   │                            whichever of Ctrl+L/Ctrl+O is active
+│   │                            (arbitrary predicate); the two are
+│   │                            independent dimensions that COMBINE with
+│   │                            AND (_filter_is_active / _apply_view_filter's
+│   │                            _matches()) — either can be adjusted or
+│   │                            cleared without disturbing the other
+│   ├── view_filter_bar.py     — ViewFilterBar: 1-row status bar describing
+│   │                            whichever of Ctrl+L/Ctrl+O (or both,
+│   │                            combined — set_combined()) is active
 │   ├── ledger_textarea.py     — LedgerTextArea: TextArea subclass wiring in
 │   │                            LedgerHighlighter syntax highlighting and
 │   │                            search-match highlighting
@@ -155,10 +157,11 @@ LedgerTextArea (#journal_textarea) — the live text buffer
         │     locates the date span (header or P directive) → textarea.replace()
         │
         ├── Ctrl+L / Ctrl+O (ViewFilterMixin, view_filter.py):
-        │     parse_string_lenient(text) → hide non-matching transactions
-        │     (cleared-state check, or an arbitrary predicate from
-        │     query_match.build_transaction_predicate()) → textarea.load_text()
-        │     → edits merged back into the parsed Journal on exit or save
+        │     parse_string_lenient(text) → hide transactions not matching
+        │     BOTH the cleared-state check (if Ctrl+L mode != 0) AND the
+        │     predicate from query_match.build_transaction_predicate() (if
+        │     Ctrl+O is active) → textarea.load_text() → edits merged back
+        │     into the parsed Journal on exit or save
         │
         ├── Tab (AutocompleteMixin.action_autocomplete, autocomplete.py):
         │     _completion_context() → JournalIndex.matching_accounts()/

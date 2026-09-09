@@ -62,6 +62,14 @@ def parse_date_range(
 ) -> tuple[datetime.date | None, datetime.date | None]:
     """Parse an optional date-from / date-to pair.
 
+    A bounded calendar-period phrase ("last month", "today", "yesterday",
+    "last year", "q1".."q4", "ytd" — see _period_bounds()) used ALONE in
+    one field auto-fills the other from that same period's other end, so
+    e.g. from_text="last month" with to_text=None resolves to the whole of
+    last month, not an open-ended floor. Filling both fields explicitly is
+    never overridden. A plain ISO date or relative offset ("-7d") used
+    alone stays open-ended — single points in time, not spans.
+
     Raises:
         DateParseError: if either non-None string fails to parse.
     """
@@ -438,19 +446,31 @@ Also exports `_find_transaction_block(lines, row) -> tuple[int, int]` and
 ```python
 class ViewFilterMixin:
     def action_cycle_view_filter(self) -> None:
-        """Ctrl+L: All -> Cleared -> Unreconciled -> All. Exits an active
-        Ctrl+O criteria filter first, if one is active."""
+        """Ctrl+L: All -> Cleared -> Unreconciled -> All. Combines (AND)
+        with any active Ctrl+O criteria filter rather than replacing it."""
 
     def apply_criteria_filter(self, predicate: Callable[[object], bool]) -> None:
-        """Enter (or replace) a Ctrl+O criteria-filter view using predicate.
-        Exits any active Ctrl+L filter or prior criteria filter first."""
+        """Set (or replace) the Ctrl+O criteria predicate. Combines (AND)
+        with any active Ctrl+L cleared/uncleared mode rather than
+        replacing it."""
 
     def clear_criteria_filter(self) -> None:
-        """Exit an active Ctrl+O criteria filter, restoring the full journal. No-op if none active."""
+        """Remove just the Ctrl+O criteria predicate. Any active Ctrl+L
+        mode is left untouched. No-op if no criteria filter is active."""
+
+    @property
+    def _filter_is_active(self) -> bool:
+        """True if either dimension (Ctrl+L mode != 0, or a Ctrl+O
+        predicate) is currently filtering the view."""
 ```
 
-Ctrl+L and Ctrl+O share one parse→hide→merge-edits-back→restore engine
-and are mutually exclusive — see the module docstring.
+Ctrl+L and Ctrl+O share one parse→hide→merge-edits-back→restore engine.
+They are two INDEPENDENT dimensions that combine with AND when both are
+active (e.g. "Cleared only" narrowed further by a Ctrl+O account filter) —
+reversed from Phase 3's original mutually-exclusive "replace" semantics
+per UAT feedback; see `planning/next-release-phase-plan.md`'s Phase 3
+"Interaction with Ctrl+L" note for the history. `ViewFilterBar.set_combined()`
+composes the status-bar label from both dimensions.
 
 ### `AutocompleteMixin` (`widgets/autocomplete.py`)
 
@@ -477,11 +497,16 @@ start_col) contract.
 
 ```python
 class ViewFilterBar(Widget):
-    """1-row status bar showing the active Ctrl+L mode or Ctrl+O criteria filter."""
+    """1-row status bar describing the active Ctrl+L mode and/or Ctrl+O
+    criteria filter — the two combine, so this may describe both at once."""
     def set_mode(self, mode: int) -> None:
         """Update the label for a fixed Ctrl+L mode (0=All, 1=Cleared, 2=Unreconciled)."""
     def set_label(self, text: str) -> None:
-        """Set an arbitrary label directly — used for the Ctrl+O criteria filter."""
+        """Set an arbitrary label directly."""
+    def set_combined(self, mode: int, criteria_active: bool) -> None:
+        """Compose one label from both the Ctrl+L mode and whether Ctrl+O
+        is also active — what ViewFilterMixin actually calls after any
+        change to either dimension."""
 ```
 
 ### `AutocompletePopup` (`widgets/autocomplete_popup.py`)

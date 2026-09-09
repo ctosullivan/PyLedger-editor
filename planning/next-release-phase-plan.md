@@ -381,31 +381,34 @@ Phase 1.1/1.2, for consistency) for `m`/`y`.
    `Ctrl+L` mode 0 already uses.
 5. Interaction with `Ctrl+L`: they share the same underlying engine but
    are two independent triggers. **Decision (accepted 2026-09-05,
-   reversed 2026-09-09 per UAT feedback):** implemented as **replace**
-   (one active filter at a time) — opening the criteria filter exits any
-   active `Ctrl+L` cleared-filter first, and vice versa. UAT on
-   `release/1.1.0` found this mentally awkward in practice; the desired
-   behaviour going forward is **combine (AND)** instead — e.g. `Ctrl+L`
-   "Cleared only" narrowed further by a `Ctrl+O` account/date/payee filter,
-   rather than the second one discarding the first. **Not yet
-   implemented** — this note records the direction for a follow-up
-   change, not a completed one. When it's picked up:
-   - `ViewFilterMixin` needs a second independent predicate slot (or a
-     single combined predicate assembled from both the fixed
-     cleared/uncleared check and any `_active_predicate`), since
-     `_apply_view_filter`'s mode!=0 branch currently treats
-     `_active_predicate is not None` as fully overriding the
-     cleared/uncleared check rather than composing with it.
-   - `ViewFilterBar`'s label needs to describe a combined state (e.g.
-     "View: Cleared only + Filtered (Ctrl+O)"), not just whichever one is
-     "active".
-   - Decide what happens to an existing `Ctrl+O` filter when `Ctrl+L` is
-     pressed again to cycle back to All — does it fall back to "just the
-     Ctrl+O filter" or clear entirely? (Symmetric question for clearing
-     the Ctrl+O side while a Ctrl+L mode is active.)
-   - Update `tests/test_filter_popup.py::TestFilterMutualExclusivity`
-     (currently asserts replace semantics) to assert combine semantics
-     instead, and add coverage for the partial-clear questions above.
+   reversed 2026-09-09 per UAT feedback, implemented 2026-09-09):**
+   originally shipped as **replace** (one active filter at a time) —
+   opening the criteria filter exited any active `Ctrl+L` cleared-filter
+   first, and vice versa. UAT on `release/1.1.0` found this mentally
+   awkward in practice, so it's now **combine (AND)** instead: `Ctrl+L`
+   "Cleared only" narrowed further by a `Ctrl+O` account/date/payee
+   filter, rather than the second one discarding the first. Either can be
+   adjusted or cleared independently without disturbing the other —
+   cycling `Ctrl+L` back to All leaves an active `Ctrl+O` filter in place,
+   and clearing the `Ctrl+O` filter leaves any active `Ctrl+L` mode in
+   place. Resolved, in order:
+   - `ViewFilterMixin` gained a `_filter_is_active` property
+     (`_view_filter_mode != 0 or _active_predicate is not None`) and
+     `_apply_view_filter`'s filtered branch now ANDs the cleared-mode
+     check with the predicate via a local `_matches()` closure, instead of
+     the predicate overriding the cleared check.
+   - `ViewFilterBar.set_combined(mode, criteria_active)` composes one
+     label describing both dimensions (e.g. "View: Cleared only + Filtered
+     (Ctrl+O)"), replacing the old either/or `set_mode`/`set_label` call
+     site in `_update_filter_bar` (both methods themselves are kept,
+     unused directly by the mixin now but still part of the widget's API).
+   - Cycling `Ctrl+L` back to All with `Ctrl+O` still active leaves just
+     the `Ctrl+O` filter showing (not a full restore); clearing `Ctrl+O`
+     with a `Ctrl+L` mode still active leaves just that mode's filter
+     showing — symmetric, resolved as "each dimension owns its own exit."
+   - `tests/test_filter_popup.py::TestFilterMutualExclusivity` renamed to
+     `TestFilterCombination` and rewritten for combine semantics, plus new
+     coverage for the two partial-clear directions above.
 
 **Files touched:** `widgets/filter_popup.py`, `widgets/view_filter.py`
 (post-split), `utils/date_parser.py`, new `utils/query_match.py`.
@@ -595,12 +598,11 @@ All five accepted the recommended option, no changes requested:
 2. **Phase 3** — **accepted.** Duplicate `ledgerkit`'s private matching
    logic locally (`utils/query_match.py`) rather than waiting on an
    upstream `ledgerkit` export.
-3. **Phase 3** — **accepted, then reversed 2026-09-09 per UAT feedback.**
-   Implemented as: `Ctrl+O` criteria filter replaces any active `Ctrl+L`
-   filter rather than combining (AND) with it. UAT found this awkward;
-   desired direction going forward is **combine (AND)** instead — see the
-   "Interaction with `Ctrl+L`" note in Phase 3 above for what that
-   requires. Not yet implemented as of this note.
+3. **Phase 3** — **accepted, then reversed and re-implemented 2026-09-09
+   per UAT feedback.** Originally shipped as `Ctrl+O` replacing any active
+   `Ctrl+L` filter; UAT found this awkward, so `Ctrl+O` and `Ctrl+L` now
+   **combine (AND)** instead — see the "Interaction with `Ctrl+L`" note in
+   Phase 3 above for what changed.
 4. **Phase 4** — **accepted.** Reclaiming `Tab` for autocomplete is
    confirmed. Scope is 4a (name completion) for `1.2.0`; 4b
    (historical-account/template suggestion) is deferred.

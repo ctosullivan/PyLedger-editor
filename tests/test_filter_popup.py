@@ -280,10 +280,73 @@ class TestFilterPopupClear:
             assert editor._active_predicate is None
 
 
-class TestFilterMutualExclusivity:
-    """Ctrl+L and Ctrl+O share one engine and are mutually exclusive."""
+class TestFilterCombination:
+    """Ctrl+L and Ctrl+O are independent dimensions that COMBINE with AND —
+    reversed from Phase 3's original "replace" (mutually exclusive)
+    semantics, per UAT feedback. See planning/next-release-phase-plan.md's
+    Phase 3 "Interaction with Ctrl+L" note for the history."""
 
-    async def test_criteria_filter_exits_active_ctrl_l_filter(
+    async def test_criteria_filter_narrows_an_active_ctrl_l_filter(
+        self, tmp_path: Path
+    ) -> None:
+        """Unreconciled-only alone shows Groceries + Rent; adding a Ctrl+O
+        predicate for just "Rent" narrows it further (AND), rather than
+        discarding the Ctrl+L mode."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            editor.action_cycle_view_filter()  # -> Cleared (1)
+            editor.action_cycle_view_filter()  # -> Unreconciled (2)
+            await pilot.pause()
+            assert editor._view_filter_mode == 2
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            assert "Groceries" in textarea.text
+            assert "Rent" in textarea.text
+            assert "Opening balances" not in textarea.text
+
+            predicate = lambda tx: tx.description == "Rent"  # noqa: E731
+            editor.apply_criteria_filter(predicate)
+            await pilot.pause()
+
+            assert editor._active_predicate is not None
+            assert editor._view_filter_mode == 2  # Ctrl+L mode untouched
+            assert "Rent" in textarea.text
+            assert "Groceries" not in textarea.text  # narrowed by Ctrl+O
+            assert "Opening balances" not in textarea.text
+
+    async def test_ctrl_l_narrows_an_active_criteria_filter(
+        self, tmp_path: Path
+    ) -> None:
+        """A Ctrl+O predicate matching everything, then narrowed by Ctrl+L's
+        Cleared-only mode on top — not replaced by it."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            predicate = lambda tx: True  # noqa: E731
+            editor.apply_criteria_filter(predicate)
+            await pilot.pause()
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            assert "Opening balances" in textarea.text
+            assert "Groceries" in textarea.text
+            assert "Rent" in textarea.text
+
+            editor.action_cycle_view_filter()  # -> Cleared, combines with predicate
+
+            await pilot.pause()
+
+            assert editor._active_predicate is not None  # NOT cleared by Ctrl+L
+            assert editor._view_filter_mode == 1
+            assert "Opening balances" in textarea.text
+            assert "Groceries" not in textarea.text
+            assert "Rent" not in textarea.text
+
+    async def test_clearing_ctrl_o_leaves_ctrl_l_mode_active(
         self, tmp_path: Path
     ) -> None:
         journal = tmp_path / "test.journal"
@@ -292,22 +355,25 @@ class TestFilterMutualExclusivity:
         app = LedgerApp(journal)
         async with app.run_test(size=(120, 30)) as pilot:
             editor = pilot.app.query_one(JournalEditor)
-            editor.action_cycle_view_filter()  # -> Cleared only (mode 1)
+            editor.action_cycle_view_filter()  # -> Cleared (1)
             await pilot.pause()
-            assert editor._view_filter_mode == 1
-            assert editor._active_predicate is None
-
-            predicate = lambda tx: tx.description == "Rent"  # noqa: E731
+            predicate = lambda tx: tx.description == "Nonexistent"  # noqa: E731
             editor.apply_criteria_filter(predicate)
             await pilot.pause()
-
-            assert editor._active_predicate is not None
             textarea = editor.query_one("#journal_textarea", TextArea)
-            assert "Rent" in textarea.text
-            assert "Groceries" not in textarea.text
-            assert "Opening balances" not in textarea.text
+            assert textarea.text.strip() == ""  # AND of both -> nothing matches
 
-    async def test_ctrl_l_exits_active_criteria_filter(self, tmp_path: Path) -> None:
+            editor.clear_criteria_filter()
+            await pilot.pause()
+
+            assert editor._active_predicate is None
+            assert editor._view_filter_mode == 1  # Ctrl+L mode preserved
+            assert "Opening balances" in textarea.text
+            assert "Groceries" not in textarea.text
+
+    async def test_cycling_ctrl_l_back_to_all_leaves_ctrl_o_active(
+        self, tmp_path: Path
+    ) -> None:
         journal = tmp_path / "test.journal"
         journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
 
@@ -317,17 +383,16 @@ class TestFilterMutualExclusivity:
             predicate = lambda tx: tx.description == "Rent"  # noqa: E731
             editor.apply_criteria_filter(predicate)
             await pilot.pause()
-            assert editor._active_predicate is not None
-
-            editor.action_cycle_view_filter()  # exits criteria filter, -> Cleared only
+            editor.action_cycle_view_filter()  # -> Cleared (1)
+            editor.action_cycle_view_filter()  # -> Unreconciled (2)
+            editor.action_cycle_view_filter()  # -> All (0)
             await pilot.pause()
 
-            assert editor._active_predicate is None
-            assert editor._view_filter_mode == 1
+            assert editor._view_filter_mode == 0
+            assert editor._active_predicate is not None  # Ctrl+O still active
             textarea = editor.query_one("#journal_textarea", TextArea)
-            # Cleared only: "Opening balances" (*) visible, others not.
-            assert "Opening balances" in textarea.text
-            assert "Groceries" not in textarea.text
+            assert "Rent" in textarea.text
+            assert "Groceries" not in textarea.text  # still narrowed by Ctrl+O
 
     async def test_view_filter_bar_shows_criteria_label(self, tmp_path: Path) -> None:
         journal = tmp_path / "test.journal"
@@ -343,6 +408,24 @@ class TestFilterMutualExclusivity:
             bar = editor.query_one(ViewFilterBar)
             label = bar.query_one("#filter-label")
             assert "Ctrl+O" in str(label.content)
+
+    async def test_view_filter_bar_shows_combined_label(self, tmp_path: Path) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            editor.action_cycle_view_filter()  # -> Cleared (1)
+            await pilot.pause()
+            predicate = lambda tx: True  # noqa: E731
+            editor.apply_criteria_filter(predicate)
+            await pilot.pause()
+
+            bar = editor.query_one(ViewFilterBar)
+            label = str(bar.query_one("#filter-label").content)
+            assert "Cleared only" in label
+            assert "Ctrl+O" in label
 
 
 class TestFilterAppMessageWiring:

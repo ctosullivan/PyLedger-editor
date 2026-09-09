@@ -1,11 +1,11 @@
 """View filter status bar for JournalEditor.
 
 Always visible at the top of the editor pane. Shows the active transaction
-filter — either the fixed All/Cleared/Unreconciled cycle (Ctrl+L, via
-set_mode) or an arbitrary label for the Ctrl+O criteria filter (via
-set_label, since that one isn't one of the three fixed modes). This widget
+filter — Ctrl+L's fixed All/Cleared/Unreconciled cycle, an arbitrary label
+for the Ctrl+O criteria filter, or (since the two combine with AND rather
+than being mutually exclusive) both at once via set_combined(). This widget
 only displays the current state; JournalEditor (widgets/view_filter.py)
-decides which of Ctrl+L/Ctrl+O is active.
+decides what's active.
 """
 
 from __future__ import annotations
@@ -51,3 +51,22 @@ class ViewFilterBar(Widget):
         """Set an arbitrary label directly — used by the Ctrl+O criteria
         filter, which isn't one of the three fixed Ctrl+L modes."""
         self.query_one("#filter-label", Static).update(text)
+
+    def set_combined(self, mode: int, criteria_active: bool) -> None:
+        """Update for the current Ctrl+L mode AND whether a Ctrl+O criteria
+        filter is also active, composing one label describing both.
+
+        Ctrl+L and Ctrl+O combine (AND) rather than being mutually
+        exclusive — this is the label update JournalEditor calls after any
+        change to either dimension, so the two never show a stale or
+        one-sided description of what's actually filtering the view.
+        """
+        self.current_mode = mode
+        base = _LABELS.get(mode, _LABELS[0])
+        if not criteria_active:
+            label = base
+        elif mode == 0:
+            label = "View: Filtered (Ctrl+O)"
+        else:
+            label = f"{base} + Filtered (Ctrl+O)"
+        self.query_one("#filter-label", Static).update(label)
