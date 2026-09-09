@@ -78,6 +78,49 @@ class TestFilterPopupApply:
             assert "Opening balances" not in textarea.text
             assert "Rent" not in textarea.text
 
+    async def test_last_month_alone_is_bounded_to_that_month(
+        self, tmp_path: Path
+    ) -> None:
+        """UAT finding: Date From = "last month" with Date To blank was
+        showing everything since the 1st of last month (open-ended,
+        including this month), not just last month. Fixed in
+        date_parser.parse_date_range()'s period auto-fill."""
+        import datetime
+
+        today = datetime.date.today()
+        last_month_end = today.replace(day=1) - datetime.timedelta(days=1)
+        last_month_start = last_month_end.replace(day=1)
+        # A day safely inside last month, and a day safely inside this
+        # month, regardless of which day of the month "today" actually is.
+        in_last_month = last_month_start + datetime.timedelta(
+            days=min(4, (last_month_end - last_month_start).days)
+        )
+        this_month_day = today.replace(day=1)
+
+        journal_text = (
+            f"{in_last_month.isoformat()} Last Month Txn\n"
+            "    expenses:misc    £10.00\n"
+            "    assets:bank:checking\n"
+            "\n"
+            f"{this_month_day.isoformat()} This Month Txn\n"
+            "    expenses:misc    £20.00\n"
+            "    assets:bank:checking\n"
+        )
+        journal = tmp_path / "test.journal"
+        journal.write_text(journal_text, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _open_filter_and_fill(pilot, **{"date-from": "last month"})
+            popup = pilot.app.query_one(FilterPopup)
+            popup.apply_filter()
+            await pilot.pause()
+
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            assert "Last Month Txn" in textarea.text
+            assert "This Month Txn" not in textarea.text
+
     async def test_payee_regex_filter(self, tmp_path: Path) -> None:
         journal = tmp_path / "test.journal"
         journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")

@@ -120,14 +120,77 @@ class TestParseDateRange:
     def test_both_none(self) -> None:
         assert parse_date_range(None, None, TODAY) == (None, None)
 
-    def test_from_only(self) -> None:
+    def test_from_only_iso_date_stays_open_ended(self) -> None:
+        # A plain ISO date is a single point, not a period — no auto-fill.
         result = parse_date_range("2024-01-01", None, TODAY)
         assert result == (datetime.date(2024, 1, 1), None)
 
-    def test_to_only(self) -> None:
-        result = parse_date_range(None, "today", TODAY)
-        assert result == (None, TODAY)
+    def test_to_only_iso_date_stays_open_ended(self) -> None:
+        result = parse_date_range(None, "2024-12-31", TODAY)
+        assert result == (None, datetime.date(2024, 12, 31))
+
+    def test_from_only_relative_offset_stays_open_ended(self) -> None:
+        # A relative offset is also a single point, not a period.
+        result = parse_date_range("-7d", None, TODAY)
+        assert result == (TODAY - datetime.timedelta(days=7), None)
 
     def test_both_present(self) -> None:
         result = parse_date_range("2024-01-01", "2024-12-31", TODAY)
         assert result == (datetime.date(2024, 1, 1), datetime.date(2024, 12, 31))
+
+
+class TestParseDateRangePeriodAutoFill:
+    """A bounded period phrase ("last month", "today", "q1", "ytd", ...)
+    used alone auto-fills the other bound with that same period's other
+    end, rather than staying open — see _period_bounds()."""
+
+    def test_from_only_today_becomes_just_today(self) -> None:
+        result = parse_date_range("today", None, TODAY)
+        assert result == (TODAY, TODAY)
+
+    def test_to_only_today_becomes_just_today(self) -> None:
+        # Symmetric: a period phrase in the "to" field auto-fills "from"
+        # with the period's start, not just its own (start-based) value.
+        result = parse_date_range(None, "today", TODAY)
+        assert result == (TODAY, TODAY)
+
+    def test_from_only_yesterday(self) -> None:
+        y = TODAY - datetime.timedelta(days=1)
+        assert parse_date_range("yesterday", None, TODAY) == (y, y)
+
+    def test_from_only_last_month_bounded_to_that_month(self) -> None:
+        # TODAY = 2024-06-15 -> last month = May 2024, whole month.
+        result = parse_date_range("last month", None, TODAY)
+        assert result == (datetime.date(2024, 5, 1), datetime.date(2024, 5, 31))
+
+    def test_to_only_last_month_bounded_to_that_month(self) -> None:
+        result = parse_date_range(None, "last month", TODAY)
+        assert result == (datetime.date(2024, 5, 1), datetime.date(2024, 5, 31))
+
+    def test_from_only_last_year_bounded_to_that_year(self) -> None:
+        result = parse_date_range("last year", None, TODAY)
+        assert result == (datetime.date(2023, 1, 1), datetime.date(2023, 12, 31))
+
+    def test_from_only_quarter_bounded_to_that_quarter(self) -> None:
+        # TODAY's year = 2024; q1 = Jan-Mar.
+        result = parse_date_range("q1", None, TODAY)
+        assert result == (datetime.date(2024, 1, 1), datetime.date(2024, 3, 31))
+
+    def test_from_only_q4_bounded_correctly(self) -> None:
+        result = parse_date_range("q4", None, TODAY)
+        assert result == (datetime.date(2024, 10, 1), datetime.date(2024, 12, 31))
+
+    def test_from_only_ytd_bounded_by_today_not_year_end(self) -> None:
+        # "year to date" means up to now, not through Dec 31.
+        result = parse_date_range("ytd", None, TODAY)
+        assert result == (datetime.date(2024, 1, 1), TODAY)
+
+    def test_explicit_both_fields_not_overridden(self) -> None:
+        # Auto-fill only kicks in when the OTHER field is blank.
+        result = parse_date_range("last month", "today", TODAY)
+        assert result == (datetime.date(2024, 5, 1), TODAY)
+
+    def test_month_boundary_across_year_change(self) -> None:
+        jan_today = datetime.date(2024, 1, 15)
+        result = parse_date_range("last month", None, jan_today)
+        assert result == (datetime.date(2023, 12, 1), datetime.date(2023, 12, 31))

@@ -42,7 +42,7 @@ The view filter changes what the editor shows without hiding any data from disk:
 
 The popup has four fields, all optional — leave any blank to not filter on that dimension:
 
-- **Date from / Date to** — smart dates: ISO 8601 (`2024-01-15`), named periods (`today`, `yesterday`, `last month`, `last year`, `ytd`), quarters (`q1`–`q4`, current year), or a relative offset (`-7d`, `+2w`, `-1m`, `+1y`).
+- **Date from / Date to** — smart dates: ISO 8601 (`2024-01-15`), named periods (`today`, `yesterday`, `last month`, `last year`, `ytd`), quarters (`q1`–`q4`, current year), or a relative offset (`-7d`, `+2w`, `-1m`, `+1y`). A named period typed into **just one** of the two fields (the other left blank) is bounded to that whole period automatically — e.g. Date From = `last month` alone filters to last month only (1st through its last day), not "from the 1st of last month onward" including everything since. `ytd` is bounded by today, not December 31st. Filling in both fields explicitly always wins over the auto-fill. A plain ISO date or a relative offset (`-7d`) used alone stays open-ended, since those are single points in time rather than spans with a natural other end.
 - **Account** — matches if *any* posting in the transaction matches. A plain string is a case-insensitive substring match; a string containing any regex metacharacter (`. ^ $ * + ? ( ) [ ] { } | \`) is compiled and matched as a Python regex instead (case-insensitive) — e.g. `^expenses:food` matches only accounts starting with that prefix, `food|rent` matches either. This is the same substring-or-regex convention hledger itself uses.
 - **Payee** — same substring-or-regex convention, matched against the transaction description.
 
