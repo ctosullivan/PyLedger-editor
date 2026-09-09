@@ -29,7 +29,8 @@ class FilterPopup(Widget):
     Triggered by Ctrl+O. Stays visible while active so the user can adjust
     filters interactively. Closed by a second Ctrl+O or Escape — closing the
     popup does NOT clear an already-applied filter; use the Clear button (or
-    apply an empty filter) for that.
+    apply with every field blank) for that. The Clear button also empties
+    the input fields themselves, not just the applied filter.
 
     Fields:
         date_from / date_to : Smart date strings — ISO 8601, "today",
@@ -119,19 +120,29 @@ class FilterPopup(Widget):
         if event.button.id == "btn-apply":
             self.apply_filter()
         elif event.button.id == "btn-clear":
+            self._clear_fields()
             self.post_message(self.FilterCleared())
+
+    def _clear_fields(self) -> None:
+        """Reset every input field to empty (Clear button)."""
+        for field_id in ("#date-from", "#date-to", "#account", "#payee"):
+            self.query_one(field_id, Input).value = ""
 
     def apply_filter(self) -> None:
         """Read field values, build a validated predicate, and post FilterApplied.
 
         Empty date/account/payee fields become None (no filter on that
-        dimension) — an all-empty form is a valid, harmless "match
-        everything" filter. Smart dates are parsed via
-        date_parser.parse_date_range(); a DateParseError is caught and shown
-        as a notification without posting anything. Account/payee become a
-        ledgerkit.Query passed through query_match.build_transaction_predicate(),
-        which raises re.error immediately for an invalid regex — also caught
-        and shown as a notification.
+        dimension). If EVERY field is empty, this is treated as "no filter"
+        rather than a "match everything" filter that still round-trips the
+        text through ledgerkit's re-serialisation — posting FilterCleared
+        instead (a no-op if nothing was active) so an empty Apply never
+        reformats the document or marks it modified. Smart dates are parsed
+        via date_parser.parse_date_range(); a DateParseError is caught and
+        shown as a notification without posting anything. Account/payee
+        become a ledgerkit.Query passed through
+        query_match.build_transaction_predicate(), which raises re.error
+        immediately for an invalid regex — also caught and shown as a
+        notification.
         """
         import ledgerkit  # noqa: PLC0415
         from ledgerkit_editor.utils.date_parser import DateParseError, parse_date_range  # noqa: PLC0415
@@ -141,6 +152,10 @@ class FilterPopup(Widget):
         date_to_text = self.query_one("#date-to", Input).value.strip() or None
         account_text = self.query_one("#account", Input).value.strip() or None
         payee_text = self.query_one("#payee", Input).value.strip() or None
+
+        if not any((date_from_text, date_to_text, account_text, payee_text)):
+            self.post_message(self.FilterCleared())
+            return
 
         try:
             date_from, date_to = parse_date_range(date_from_text, date_to_text)

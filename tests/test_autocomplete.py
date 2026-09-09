@@ -110,6 +110,34 @@ class TestAutocompleteIntegration:
             assert popup.is_showing
             assert popup.selected_candidate in popup.candidates
 
+    async def test_popup_is_tall_enough_to_show_its_border_and_content(
+        self, tmp_path: Path
+    ) -> None:
+        """UAT finding: the bar wasn't visible ("seems to be behind editor
+        window") even though completion itself worked. Root cause:
+        height: 1 with a border-top leaves zero rows for content — the
+        border alone consumes the only available row. Must be >= 2."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            popup = editor.query_one(AutocompletePopup)
+
+            popup.show(["expenses:food", "expenses:food:organic"])
+            await pilot.pause()
+
+            # region/outer_size include the border; size is the inner
+            # content box (excludes it) — with height:2 and a 1-row
+            # border-top, the content box gets exactly 1 row, which is
+            # what actually matters: at the old height:1, content got 0
+            # rows and nothing could render, regardless of the border
+            # itself still reserving space.
+            assert popup.region.height == 2
+            assert popup.size.height >= 1
+            assert popup.query(".candidate")
+
     async def test_tab_again_cycles_candidate(self, tmp_path: Path) -> None:
         journal = tmp_path / "test.journal"
         journal.write_text(JOURNAL, encoding="utf-8")

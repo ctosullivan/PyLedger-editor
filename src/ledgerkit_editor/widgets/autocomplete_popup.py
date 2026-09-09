@@ -31,7 +31,7 @@ class AutocompletePopup(Widget):
     DEFAULT_CSS = """
     AutocompletePopup {
         dock: bottom;
-        height: 1;
+        height: 2;
         background: $surface;
         border-top: solid $primary;
         display: none;

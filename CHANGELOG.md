@@ -6,6 +6,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Ctrl+O with every filter field blank was reformatting the document (losing source amount spacing) and marking the file "modified" even though nothing was actually being filtered — it went through the same parse-and-re-serialise round-trip a real filter uses, which doesn't preserve original spacing on its own. An all-blank Apply is now treated as "no filter" (equivalent to Clear) rather than a "match everything" filter, so it's a true no-op. Separately, entering/exiting a *real* filter (Ctrl+L or a non-empty Ctrl+O) now re-applies the same commodity-formatting + column-alignment pass `Ctrl+S` uses, so the visible formatting stays consistent across a filter round-trip instead of reverting to ledgerkit's unaligned default output.
+  **Human:** UAT on `release/1.1.0`: "an empty filter is removing the transaction formatting (amount alignments etc) and causing the file to appear modified following filter removal."
+  **Claude:** `FilterPopup.apply_filter()` now posts `FilterCleared` instead of `FilterApplied` when every field is blank. `ViewFilterMixin._apply_view_filter()` now runs `extract_commodity_styles()`/`apply_commodity_styles()`/`align_posting_amounts()` on both the restore and filtered-view text, matching `action_save()`'s pipeline.
+- The Ctrl+O filter popup's Clear button now also empties its own input fields, not just the applied filter.
+  **Human:** UAT comment: "when clear is selected in the Transaction Filter popup, the text already entered in the filter fields should also be cleared."
+  **Claude:** Added `FilterPopup._clear_fields()`, called from the Clear button handler.
+- `Ctrl+O` is now reliably visible in the footer. Textual's `Footer` is a horizontally-scrolling container with an invisible scrollbar (`scrollbar-size: 0 0`) — a binding that doesn't fit the visible width silently scrolls out of sight rather than being hidden or dropped. `Ctrl+O` is an App-level binding, appended after `JournalEditor`'s own bindings in the footer's rendering order, making it the first casualty of a full row on a typical terminal width.
+  **Human:** UAT comment: "the CTRL+O shortcut should be displayed in the bottom toolbar - replace the CTRL+S shortcut if no space."
+  **Claude:** Set `show=False` on the `ctrl+s` binding (freeing up footer width; Ctrl+S doesn't need the reminder) — implemented exactly as suggested rather than a more invasive footer-layout change.
+- The Tab-autocomplete suggestion bar wasn't visible ("seems to be behind editor window") even though the completion itself worked. Root cause: `AutocompletePopup`'s CSS declared `height: 1` together with `border-top: solid $primary` — the border alone consumes the widget's only row, leaving zero rows for the candidate labels to actually render in.
+  **Human:** UAT: "suggestion bar does not appear (seems to be behind editor window), however matches do autocomplete."
+  **Claude:** Changed `AutocompletePopup`'s `height` from `1` to `2` (1 row border + 1 row content). New regression test asserts `popup.region.height == 2` after `show()`.
+
+### Changed
+- `Ctrl+O`'s Transaction Filter and `Ctrl+L`'s cleared/uncleared cycle remain **mutually exclusive** in this release (applying one exits the other), as originally accepted in Phase 3 of `planning/next-release-phase-plan.md`. UAT feedback was that this should instead be **combine (AND)** — that decision has been reversed in the plan document for a future change; not implemented in this response. See the plan's Phase 3 "Interaction with Ctrl+L" note for what the change requires.
+  **Human:** UAT comment: "desired behavior for Filter / Ctrl+L mutual is for them not to be mutually exclusive - plan to update accordingly."
+  **Claude:** Updated `planning/next-release-phase-plan.md` (Phase 3 section and the "Open decisions" summary) to record the reversal and the concrete follow-up work it needs. Behaviour itself is unchanged pending that follow-up.
+
 ### Docs
 - Fixed the drift flagged (but left unedited, pending approval) in the previous entry: `CLAUDE.md`'s "Folder Structure" section and `dev-docs/api-spec.md` both still documented `balance_sidebar.py`, `register_panel.py`, and the `reconcile_*.py` widgets removed in v0.8.0, and both were missing every module added since (the four `JournalEditor` mixins, `filter_popup.py`'s current Ctrl+O behaviour, `autocomplete_popup.py`, `view_filter_bar.py`, `query_match.py`, `journal_index.py`). Both are protected files (`CLAUDE.md`'s Unauthorised Change Rule) — explicit approval was requested and given before editing either.
   **Human:** "fix both files" (in response to the flagged drift), plus a request for an updated UAT checklist, an updated UAT sample journal if needed, and saved venv-setup/dev-install instructions.

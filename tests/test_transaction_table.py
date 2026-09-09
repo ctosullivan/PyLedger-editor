@@ -836,3 +836,16 @@ class TestDateShiftAction:
             await pilot.pause()
 
             assert textarea.text == original_text
+
+
+# ---------------------------------------------------------------------------
+# Footer visibility — UAT: Ctrl+O (App-level) was scrolling off the
+# invisible-scrollbar Footer; Ctrl+S is hidden from it to make room.
+# ---------------------------------------------------------------------------
+
+
+class TestFooterVisibility:
+    def test_ctrl_s_binding_is_hidden(self) -> None:
+        matches = [b for b in JournalEditor.BINDINGS if b.key == "ctrl+s"]
+        assert matches, "expected a ctrl+s binding on JournalEditor"
+        assert matches[0].show is False

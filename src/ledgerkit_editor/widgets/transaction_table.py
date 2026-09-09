@@ -88,7 +88,16 @@ class JournalEditor(
     """
 
     BINDINGS = [
-        Binding("ctrl+s", "save", "Save", key_display="Ctrl+S"),
+        # show=False: Ctrl+S is universally known and doesn't need footer
+        # real estate. Textual's Footer is a horizontally-scrolling
+        # container with an invisible scrollbar (scrollbar-size: 0 0) — a
+        # binding that doesn't fit the visible width silently scrolls out
+        # of view rather than being dropped, so anything low-priority to
+        # *see* (as opposed to use) should free up the room. UAT flagged
+        # this specifically for Ctrl+O (App-level, and since App bindings
+        # are appended after widget-level ones in the footer's binding
+        # order, the least likely to fit) — hiding this is the direct fix.
+        Binding("ctrl+s", "save", "Save", key_display="Ctrl+S", show=False),
         Binding("ctrl+r", "toggle_cleared", "Toggle cleared", key_display="Ctrl+R"),
         Binding("ctrl+g", "autofill", "Duplicate to end", key_display="Ctrl+G"),
         Binding("ctrl+d", "insert_today", "Insert date",

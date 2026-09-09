@@ -46,9 +46,9 @@ The popup has four fields, all optional — leave any blank to not filter on tha
 - **Account** — matches if *any* posting in the transaction matches. A plain string is a case-insensitive substring match; a string containing any regex metacharacter (`. ^ $ * + ? ( ) [ ] { } | \`) is compiled and matched as a Python regex instead (case-insensitive) — e.g. `^expenses:food` matches only accounts starting with that prefix, `food|rent` matches either. This is the same substring-or-regex convention hledger itself uses.
 - **Payee** — same substring-or-regex convention, matched against the transaction description.
 
-**Apply** builds the filter and shows only matching transactions, using the same show/edit/merge-back engine as `Ctrl+L` — edits made while filtered are merged back into the full journal when you clear the filter, switch to `Ctrl+L`, or save. An invalid date string or regex is rejected with a notification and the previous view is left unchanged.
+**Apply** builds the filter and shows only matching transactions, using the same show/edit/merge-back engine as `Ctrl+L` — edits made while filtered are merged back into the full journal when you clear the filter, switch to `Ctrl+L`, or save. An invalid date string or regex is rejected with a notification and the previous view is left unchanged. Applying with **every field blank** is treated as "no filter" (same as Clear) rather than a "match everything" filter — it's a true no-op and won't reformat the document or mark it modified.
 
-**Clear** restores the full journal.
+**Clear** restores the full journal and empties the popup's own input fields.
 
 `Ctrl+O`'s criteria filter and `Ctrl+L`'s cleared/uncleared cycle are **mutually exclusive** — applying one automatically exits the other first. The status bar at the top of the editor shows which (if either) is currently active.
 

@@ -94,6 +94,30 @@ class TestFilterPopupApply:
             assert "Rent" in textarea.text
             assert "Groceries" not in textarea.text
 
+    async def test_empty_filter_is_a_true_noop(self, tmp_path: Path) -> None:
+        """UAT finding: an all-blank Apply was reformatting the document
+        (losing source spacing) and marking it modified, even though
+        nothing was actually being filtered. Empty Apply must leave the
+        text byte-for-byte unchanged."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            original_text = textarea.text
+            assert original_text == THREE_TXN_JOURNAL
+
+            await _open_filter_and_fill(pilot)
+            popup = pilot.app.query_one(FilterPopup)
+            popup.apply_filter()
+            await pilot.pause()
+
+            assert textarea.text == original_text
+            assert editor._active_predicate is None
+            assert editor._view_filter_mode == 0
+
     async def test_empty_filter_shows_everything(self, tmp_path: Path) -> None:
         journal = tmp_path / "test.journal"
         journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
@@ -167,6 +191,50 @@ class TestFilterPopupClear:
             assert "Opening balances" in textarea.text
             assert editor._active_predicate is None
             assert editor._view_filter_mode == 0
+
+    async def test_clear_button_empties_input_fields(self, tmp_path: Path) -> None:
+        """UAT finding: Clear should reset the popup's own text fields, not
+        just the applied filter."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _open_filter_and_fill(
+                pilot, account="rent", payee="Rent", **{"date-from": "2024-01-01"}
+            )
+            popup = pilot.app.query_one(FilterPopup)
+
+            await pilot.click("#btn-clear")
+            await pilot.pause()
+
+            assert popup.query_one("#account", Input).value == ""
+            assert popup.query_one("#payee", Input).value == ""
+            assert popup.query_one("#date-from", Input).value == ""
+            assert popup.query_one("#date-to", Input).value == ""
+
+    async def test_empty_apply_clears_an_active_filter(self, tmp_path: Path) -> None:
+        """Applying with every field blank while a filter IS active clears
+        it, same as the Clear button — an empty Apply isn't a "match
+        everything" filter, it means "no filter"."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            predicate = lambda tx: tx.description == "Rent"  # noqa: E731
+            editor.apply_criteria_filter(predicate)
+            await pilot.pause()
+
+            await _open_filter_and_fill(pilot)
+            popup = pilot.app.query_one(FilterPopup)
+            popup.apply_filter()
+            await pilot.pause()
+
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            assert "Groceries" in textarea.text
+            assert editor._active_predicate is None
 
 
 class TestFilterMutualExclusivity:

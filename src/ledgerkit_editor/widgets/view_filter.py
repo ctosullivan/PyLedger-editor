@@ -125,8 +125,23 @@ class ViewFilterMixin:
         self._apply_view_filter(textarea)
 
     def _apply_view_filter(self, textarea: LedgerTextArea) -> None:
-        """Rebuild textarea content from _filter_journal for the current mode."""
+        """Rebuild textarea content from _filter_journal for the current mode.
+
+        Both branches below re-apply the same commodity-formatting and
+        column-alignment pass action_save() uses (utils.commodity_format /
+        utils.ledger_io.align_posting_amounts), so that entering or exiting
+        a filter doesn't itself change the document's formatting or trip
+        the modified indicator — UAT found this: opening the criteria
+        filter with every field blank was reformatting amounts and marking
+        the file "modified" purely from the parse -> transaction_to_text()
+        round-trip, which doesn't preserve source spacing on its own.
+        """
         import ledgerkit  # noqa: PLC0415
+        from ledgerkit_editor.utils.commodity_format import (  # noqa: PLC0415
+            apply_commodity_styles,
+            extract_commodity_styles,
+        )
+        from ledgerkit_editor.utils.ledger_io import align_posting_amounts  # noqa: PLC0415
 
         journal = self._filter_journal
 
@@ -150,6 +165,9 @@ class ViewFilterMixin:
                     full_text = blocks[0] + ledgerkit.journal_to_text(journal)
                 else:
                     full_text = ledgerkit.journal_to_text(journal)
+                commodity_styles = extract_commodity_styles(journal)
+                full_text = apply_commodity_styles(full_text, commodity_styles)
+                full_text = align_posting_amounts(full_text)
             else:
                 full_text = textarea.text
             self._filter_journal = None
@@ -173,6 +191,9 @@ class ViewFilterMixin:
             self._filter_visible_indices = [i for i, _ in visible]
             parts = [ledgerkit.transaction_to_text(tx) for _, tx in visible]
             filtered_text = "\n".join(parts)
+            commodity_styles = extract_commodity_styles(journal)
+            filtered_text = apply_commodity_styles(filtered_text, commodity_styles)
+            filtered_text = align_posting_amounts(filtered_text)
             textarea.load_text(filtered_text)
 
         self._update_filter_bar()
