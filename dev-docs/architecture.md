@@ -91,7 +91,9 @@ src/ledgerkit_editor/
 │                                 and command palette provider stubs
 └── utils/
     ├── date_parser.py          — Smart date string → datetime.date; ISO 8601,
-    │                             named periods, quarters, and relative
+    │                             year-month shorthand ("2026-02"), named
+    │                             periods (incl. weeks/months/years), month
+    │                             names ("sep 2026"), quarters, and relative
     │                             offsets ("-7d", "+1m", "+2w", "-1y")
     ├── query_match.py          — Local reimplementation of ledgerkit's
     │                             substring-or-regex Query matching

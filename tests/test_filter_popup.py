@@ -576,3 +576,87 @@ class TestFilterAppMessageWiring:
             textarea = editor.query_one("#journal_textarea", TextArea)
             assert "Rent" in textarea.text
             assert "Groceries" not in textarea.text
+
+
+class TestFilterPopupEditPersistence:
+    """UAT round 3: a transaction added while a Ctrl+O criteria filter is
+    active must survive to the saved file, including when the user cycles
+    Ctrl+L (which combines with, and can visually narrow past, the newly
+    added transaction) before saving. Investigated and found NOT
+    reproducible against the actual engine — these pin the verified-correct
+    behaviour down as a permanent regression test."""
+
+    async def test_new_transaction_survives_save_via_popup(
+        self, tmp_path: Path
+    ) -> None:
+        """Simplest path: add a transaction, Ctrl+S directly, no Ctrl+L."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _open_filter_and_fill(
+                pilot, **{"date-from": "2024-01-01", "date-to": "2024-01-31"}
+            )
+            popup = pilot.app.query_one(FilterPopup)
+            popup.apply_filter()
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            lines = textarea.text.splitlines()
+            textarea.move_cursor((len(lines) - 1, len(lines[-1])))
+            textarea.insert(
+                "\n\n2024-01-20 New Test Txn\n"
+                "    expenses:misc    1.00 EUR\n"
+                "    assets:bank:checking\n"
+            )
+            await pilot.pause()
+
+            editor.action_save()
+            await pilot.pause()
+
+        assert "New Test Txn" in journal.read_text(encoding="utf-8")
+
+    async def test_new_transaction_survives_ctrl_l_cycling_then_save(
+        self, tmp_path: Path
+    ) -> None:
+        """Harder path: cycle Ctrl+L twice (Cleared, then Unreconciled —
+        each combines with the still-active Ctrl+O date filter and
+        re-merges pending edits) before saving."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _open_filter_and_fill(
+                pilot, **{"date-from": "2024-01-01", "date-to": "2024-01-31"}
+            )
+            popup = pilot.app.query_one(FilterPopup)
+            popup.apply_filter()
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+
+            editor = pilot.app.query_one(JournalEditor)
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            lines = textarea.text.splitlines()
+            textarea.move_cursor((len(lines) - 1, len(lines[-1])))
+            textarea.insert(
+                "\n\n2024-01-20 New Test Txn\n"
+                "    expenses:misc    1.00 EUR\n"
+                "    assets:bank:checking\n"
+            )
+            await pilot.pause()
+
+            editor.action_cycle_view_filter()  # -> Cleared, combined with date filter
+            await pilot.pause()
+            editor.action_cycle_view_filter()  # -> Unreconciled, combined with date filter
+            await pilot.pause()
+
+            editor.action_save()
+            await pilot.pause()
+
+        assert "New Test Txn" in journal.read_text(encoding="utf-8")

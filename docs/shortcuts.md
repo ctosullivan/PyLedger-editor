@@ -43,7 +43,15 @@ The view filter changes what the editor shows without hiding any data from disk:
 
 The popup has four fields, all optional — leave any blank to not filter on that dimension:
 
-- **Date from / Date to** — smart dates: ISO 8601 (`2024-01-15`), named periods (`today`, `yesterday`, `last month`, `last year`, `ytd`), quarters (`q1`–`q4`, current year), or a relative offset (`-7d`, `+2w`, `-1m`, `+1y`). A named period typed into **just one** of the two fields (the other left blank) is bounded to that whole period automatically — e.g. Date From = `last month` alone filters to last month only (1st through its last day), not "from the 1st of last month onward" including everything since. `ytd` is bounded by today, not December 31st. Filling in both fields explicitly always wins over the auto-fill. A plain ISO date or a relative offset (`-7d`) used alone stays open-ended, since those are single points in time rather than spans with a natural other end.
+- **Date from / Date to** — smart dates:
+  - ISO 8601 (`2024-01-15`)
+  - Year-month shorthand — a whole calendar month: `2026-02` (or `2026-2`, unpadded)
+  - Named periods: `today`, `yesterday`, `this week`, `last week`, `this month`, `last month`, `this year`, `last year`, `ytd`
+  - Quarters: `q1`–`q4` (current year)
+  - A month name, with or without a year: `september`, `sep 2026`, `September 2026` — a bare month name defaults to the current year
+  - A relative offset: `-7d`, `+2w`, `-1m`, `+1y`
+
+  A named period, month name, or `2026-02`-style shorthand typed into **just one** of the two fields (the other left blank) is bounded to that whole period automatically — e.g. Date From = `last month` alone filters to last month only (1st through its last day), not "from the 1st of last month onward" including everything since. `ytd` is bounded by today, not December 31st; weeks start Monday. Filling in both fields explicitly always wins over the auto-fill. A plain ISO date or a relative offset (`-7d`) used alone stays open-ended, since those are single points in time rather than spans with a natural other end.
 - **Account** — matches if *any* posting in the transaction matches. A plain string is a case-insensitive substring match; a string containing any regex metacharacter (`. ^ $ * + ? ( ) [ ] { } | \`) is compiled and matched as a Python regex instead (case-insensitive) — e.g. `^expenses:food` matches only accounts starting with that prefix, `food|rent` matches either. This is the same substring-or-regex convention hledger itself uses. `Tab` completes/cycles known account names (see above).
 - **Payee** — same substring-or-regex convention, matched against the transaction description. `Tab` completes/cycles known payee names.
 

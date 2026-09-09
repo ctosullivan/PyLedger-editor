@@ -63,12 +63,15 @@ def parse_date_range(
     """Parse an optional date-from / date-to pair.
 
     A bounded calendar-period phrase ("last month", "today", "yesterday",
-    "last year", "q1".."q4", "ytd" — see _period_bounds()) used ALONE in
-    one field auto-fills the other from that same period's other end, so
-    e.g. from_text="last month" with to_text=None resolves to the whole of
-    last month, not an open-ended floor. Filling both fields explicitly is
-    never overridden. A plain ISO date or relative offset ("-7d") used
-    alone stays open-ended — single points in time, not spans.
+    "this week", "last week", "this month", "this year", "last year",
+    "q1".."q4", "ytd", a year-month shorthand like "2026-02", or a month
+    name with or without a year like "sep 2026" — see _period_bounds())
+    used ALONE in one field auto-fills the other from that same period's
+    other end, so e.g. from_text="last month" with to_text=None resolves
+    to the whole of last month, not an open-ended floor. Filling both
+    fields explicitly is never overridden. A plain ISO date or relative
+    offset ("-7d") used alone stays open-ended — single points in time,
+    not spans.
 
     Raises:
         DateParseError: if either non-None string fails to parse.

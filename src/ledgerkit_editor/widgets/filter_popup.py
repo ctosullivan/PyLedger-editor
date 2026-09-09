@@ -108,9 +108,9 @@ class FilterPopup(Widget):
         """Render filter input fields and Apply/Clear buttons."""
         yield Label("Transaction Filter  (Ctrl+O to close)", id="filter-title")
         yield Label("Date from:")
-        yield Input(placeholder="e.g. last month / 2024-01-01 / -7d", id="date-from")
+        yield Input(placeholder="e.g. last month / sep 2026 / 2026-02 / 2024-01-01", id="date-from")
         yield Label("Date to:")
-        yield Input(placeholder="e.g. today / 2024-12-31", id="date-to")
+        yield Input(placeholder="e.g. today / this week / 2024-12-31", id="date-to")
         yield Label("Account:")
         yield Input(placeholder="substring or /regex/, e.g. ^expenses:food", id="account")
         yield Label("Payee:")

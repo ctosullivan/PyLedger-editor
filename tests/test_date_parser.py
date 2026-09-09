@@ -34,6 +34,41 @@ class TestParseDate:
     def test_last_year(self) -> None:
         assert parse_date("last year", TODAY) == datetime.date(2023, 1, 1)
 
+    def test_this_year(self) -> None:
+        assert parse_date("this year", TODAY) == datetime.date(2024, 1, 1)
+
+    def test_this_week(self) -> None:
+        # TODAY = 2024-06-15 (Saturday); week starts Monday 2024-06-10.
+        assert parse_date("this week", TODAY) == datetime.date(2024, 6, 10)
+
+    def test_last_week(self) -> None:
+        assert parse_date("last week", TODAY) == datetime.date(2024, 6, 3)
+
+    def test_this_month(self) -> None:
+        assert parse_date("this month", TODAY) == datetime.date(2024, 6, 1)
+
+    def test_year_month_shorthand(self) -> None:
+        assert parse_date("2026-02", TODAY) == datetime.date(2026, 2, 1)
+
+    def test_year_month_shorthand_unpadded(self) -> None:
+        assert parse_date("2026-2", TODAY) == datetime.date(2026, 2, 1)
+
+    def test_month_name_with_year(self) -> None:
+        assert parse_date("september 2026", TODAY) == datetime.date(2026, 9, 1)
+
+    def test_month_name_abbreviation_with_year(self) -> None:
+        assert parse_date("sep 2026", TODAY) == datetime.date(2026, 9, 1)
+
+    def test_month_name_bare_defaults_to_current_year(self) -> None:
+        assert parse_date("september", TODAY) == datetime.date(2024, 9, 1)
+
+    def test_month_name_case_insensitive(self) -> None:
+        assert parse_date("September 2026", TODAY) == datetime.date(2026, 9, 1)
+
+    def test_unknown_month_name_raises(self) -> None:
+        with pytest.raises(DateParseError):
+            parse_date("smarch 2026", TODAY)
+
     def test_quarter_q1(self) -> None:
         assert parse_date("q1", TODAY) == datetime.date(2024, 1, 1)
 
@@ -194,3 +229,39 @@ class TestParseDateRangePeriodAutoFill:
         jan_today = datetime.date(2024, 1, 15)
         result = parse_date_range("last month", None, jan_today)
         assert result == (datetime.date(2023, 12, 1), datetime.date(2023, 12, 31))
+
+    def test_from_only_this_week_bounded_to_that_week(self) -> None:
+        result = parse_date_range("this week", None, TODAY)
+        assert result == (datetime.date(2024, 6, 10), datetime.date(2024, 6, 16))
+
+    def test_from_only_last_week_bounded_to_that_week(self) -> None:
+        result = parse_date_range("last week", None, TODAY)
+        assert result == (datetime.date(2024, 6, 3), datetime.date(2024, 6, 9))
+
+    def test_from_only_this_month_bounded_to_that_month(self) -> None:
+        result = parse_date_range("this month", None, TODAY)
+        assert result == (datetime.date(2024, 6, 1), datetime.date(2024, 6, 30))
+
+    def test_from_only_this_year_bounded_to_that_year(self) -> None:
+        result = parse_date_range("this year", None, TODAY)
+        assert result == (datetime.date(2024, 1, 1), datetime.date(2024, 12, 31))
+
+    def test_from_only_year_month_shorthand_bounded(self) -> None:
+        result = parse_date_range("2026-02", None, TODAY)
+        assert result == (datetime.date(2026, 2, 1), datetime.date(2026, 2, 28))
+
+    def test_to_only_year_month_shorthand_bounded(self) -> None:
+        result = parse_date_range(None, "2026-02", TODAY)
+        assert result == (datetime.date(2026, 2, 1), datetime.date(2026, 2, 28))
+
+    def test_from_only_month_name_with_year_bounded(self) -> None:
+        result = parse_date_range("september 2026", None, TODAY)
+        assert result == (datetime.date(2026, 9, 1), datetime.date(2026, 9, 30))
+
+    def test_from_only_bare_month_name_bounded_to_current_year(self) -> None:
+        result = parse_date_range("december", None, TODAY)
+        assert result == (datetime.date(2024, 12, 1), datetime.date(2024, 12, 31))
+
+    def test_leap_year_february_bounded_correctly(self) -> None:
+        result = parse_date_range("2024-02", None, TODAY)
+        assert result == (datetime.date(2024, 2, 1), datetime.date(2024, 2, 29))
