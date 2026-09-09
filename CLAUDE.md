@@ -161,35 +161,69 @@ Sections to maintain:
 
 ## Folder Structure (do not change without approval)
 
+Last corrected 2026-09-09 against the actual tree — the widgets/ side panels
+below (`balance_sidebar.py`, `register_panel.py`, `reconcile_*.py`) were
+removed in v0.8.0 and are gone; everything else reflects the module-size
+split and features landed on `release/1.1.0` (see
+`planning/next-release-phase-plan.md`).
+
 ```
 ledgerkit-editor/
 ├── src/ledgerkit_editor/
-│   ├── app.py                   — LedgerApp (Textual App subclass)
+│   ├── app.py                    — LedgerApp (Textual App subclass); owns
+│   │                                the FilterPopup overlay and its messages
 │   ├── widgets/
-│   │   ├── balance_sidebar.py   — BalanceSidebar widget
-│   │   ├── transaction_table.py — JournalEditor widget (main editing surface)
-│   │   ├── ledger_textarea.py   — LedgerTextArea subclass (syntax + search highlights)
-│   │   ├── search_bar.py        — SearchBar widget (Ctrl+F incremental search)
-│   │   ├── reconcile_actions.py — ReconcileMixin + pure reconcile helpers
-│   │   ├── reconcile_bar.py     — ReconcileStatusBar (shown during reconcile mode)
-│   │   ├── reconcile_summary.py — ReconcileSummary (RegisterPanel reconcile view)
-│   │   ├── register_panel.py    — RegisterPanel with ContentSwitcher
-│   │   └── filter_popup.py      — FilterPopup overlay (Ctrl+Shift+P)
+│   │   ├── transaction_table.py  — JournalEditor: main editing surface
+│   │   │                           (BINDINGS, message classes, init/mount,
+│   │   │                           save, cursor tracking — thin, delegates
+│   │   │                           to the four mixins below)
+│   │   ├── date_shift.py         — DateShiftMixin: Shift+Up/Down date-field
+│   │   │                           shifting (headers + P price directives)
+│   │   ├── transaction_blocks.py — TransactionBlocksMixin: Ctrl+T/Ctrl+G/Ctrl+R
+│   │   ├── view_filter.py        — ViewFilterMixin: Ctrl+L cleared/uncleared
+│   │   │                           cycle and Ctrl+O criteria filter (shared
+│   │   │                           parse→hide→merge→restore engine)
+│   │   ├── autocomplete.py       — AutocompleteMixin: Tab account/payee
+│   │   │                           completion
+│   │   ├── autocomplete_popup.py — AutocompletePopup: bottom-docked Tab
+│   │   │                           suggestion bar (never takes focus)
+│   │   ├── view_filter_bar.py    — ViewFilterBar: Ctrl+L/Ctrl+O status bar
+│   │   ├── ledger_textarea.py    — LedgerTextArea subclass (syntax + search highlights)
+│   │   ├── search_bar.py         — SearchBar widget (Ctrl+F incremental search,
+│   │   │                           Ctrl+C copies the current match)
+│   │   └── filter_popup.py       — FilterPopup overlay (Ctrl+O — smart dates
+│   │                                + regex/substring account/payee filter)
+│   ├── highlighting/
+│   │   ├── highlighter.py        — LedgerHighlighter (pure-Python regex scanner)
+│   │   ├── theme_bridge.py       — TextAreaTheme built from app CSS variables
+│   │   └── tokens.py             — ledger.* token name constants
+│   ├── themes/                   — bundled Theme + TextAreaTheme definitions
 │   ├── keybindings/
-│   │   ├── office.py            — MS Office / Excel convention stubs
-│   │   └── emacs_ledger.py      — Emacs Ledger-mode convention stubs
-│   ├── commands/__init__.py     — command palette stubs
+│   │   ├── office.py             — MS Office / Excel convention stubs
+│   │   └── emacs_ledger.py       — Emacs Ledger-mode convention stubs
+│   ├── commands/__init__.py      — Command + CommandHistory (undo/redo Layer 2),
+│   │                                command palette stubs
 │   └── utils/
-│       ├── date_parser.py       — smart date parsing
-│       ├── ledger_io.py         — load/save via ledgerkit
-│       └── file_resolver.py     — journal file resolution
+│       ├── date_parser.py        — smart date parsing (incl. relative offsets)
+│       ├── query_match.py        — local hledger substring-or-regex matching
+│       │                           (ledgerkit's own version is private)
+│       ├── journal_index.py      — account/payee name index for Tab autocomplete
+│       ├── ledger_io.py          — amount alignment, directive/comment preservation
+│       ├── commodity_format.py   — per-commodity display format inference
+│       ├── atomic_edit.py        — collapses multiple edits into one undo entry
+│       └── file_resolver.py      — journal file resolution
 ├── tests/
-├── knowledge_base/              — project-specific knowledge
-├── docs/                        — user-facing documentation
-├── dev-docs/                    — developer/AI documentation
-├── CLAUDE.md                    — this file
-├── CONTEXT.md                   — session working memory
-├── CONTRIBUTING.md              — dev setup + dependency update guide
+├── knowledge_base/               — project-specific knowledge
+├── docs/                         — user-facing documentation
+├── dev-docs/                     — developer/AI documentation
+├── planning/                     — phased implementation plans
+├── uat-testing/                  — manual UAT checklists + fixture journals
+├── .claude/skills/                — polish-codebase, document-package (repeatable
+│                                    maintenance skills — see CONTRIBUTING.md)
+├── AI-README.md                  — portable, agent-efficient project primer
+├── CLAUDE.md                     — this file
+├── CONTEXT.md                    — session working memory
+├── CONTRIBUTING.md               — dev setup + dependency update guide
 ├── CHANGELOG.md
 ├── ROADMAP.md
 └── pyproject.toml

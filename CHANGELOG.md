@@ -6,6 +6,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Docs
+- Fixed the drift flagged (but left unedited, pending approval) in the previous entry: `CLAUDE.md`'s "Folder Structure" section and `dev-docs/api-spec.md` both still documented `balance_sidebar.py`, `register_panel.py`, and the `reconcile_*.py` widgets removed in v0.8.0, and both were missing every module added since (the four `JournalEditor` mixins, `filter_popup.py`'s current Ctrl+O behaviour, `autocomplete_popup.py`, `view_filter_bar.py`, `query_match.py`, `journal_index.py`). Both are protected files (`CLAUDE.md`'s Unauthorised Change Rule) — explicit approval was requested and given before editing either.
+  **Human:** "fix both files" (in response to the flagged drift), plus a request for an updated UAT checklist, an updated UAT sample journal if needed, and saved venv-setup/dev-install instructions.
+  **Claude:** Rewrote `CLAUDE.md`'s Folder Structure tree and `dev-docs/api-spec.md`'s widget sections against the actual `src/ledgerkit_editor/` tree — removed the five stale sections, added accurate ones for `DateShiftMixin`, `TransactionBlocksMixin`, `ViewFilterMixin`, `AutocompleteMixin`, `AutocompletePopup`, `ViewFilterBar`, `query_match`, and `journal_index`, and updated `FilterPopup`/`SearchBar`/`LedgerApp` for their current message classes and actions.
+
 ### Added
 - Two repeatable-process Claude Code skills, Phases 5–6 of `planning/next-release-phase-plan.md`: `.claude/skills/polish-codebase/SKILL.md` (an opt-in, non-functional-change pass — dead code, duplication, efficiency, `CLAUDE.md` convention compliance — with a hard behavior-unchanged gate; delegates the mechanical review to `/code-review` and `/simplify` rather than reinventing them) and `.claude/skills/document-package/SKILL.md` (a documentation-drift audit covering every doc in the repo, backstopping — not replacing — the existing same-response Documentation Sync Rule). Both are opt-in; neither runs automatically. `CONTRIBUTING.md` points at both.
   **Human:** Implement the remainder of the next-release plan; Phases 5–6 cover "A repeatable process and accompanying Claude skill ... to polish and simplify" and "... to document the package in a best practice manner."
