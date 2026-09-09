@@ -636,8 +636,11 @@ class TestFilterPopupFieldPersistence:
             await _open_filter_and_fill(
                 pilot, account="expenses:rent", payee="Rent"
             )
-            # Close without ever pressing Apply.
+            # Close without ever pressing Apply. Two pauses: remove() is
+            # itself async (AwaitRemove), so a single pause isn't always
+            # enough to guarantee it's settled before the query below.
             app.action_toggle_filter()
+            await pilot.pause()
             await pilot.pause()
             assert not app.query(FilterPopup)
 

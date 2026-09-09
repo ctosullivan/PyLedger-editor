@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-09-09
+
 ### Fixed
 - `Ctrl+O` filter popup: pressing `Tab` in an **empty** Account or Payee field now moves focus to the next field, instead of autocompleting to the first known account/payee name. Root cause: an empty prefix matches every entry in the index (by design, for the non-empty case), so `action_complete_field()` was treating "nothing typed yet" the same as "match everything."
   **Human:** "in the filter view if the account or payee field is empty, tab should move to the next field."
