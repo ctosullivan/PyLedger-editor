@@ -94,3 +94,23 @@ P 2026-9-1 EUR 1.08 USD
 2024-03-01 Groceries
     expenses:food    38.00 EUR
     assets:bank:checking
+
+; --- Appended for the 1.1.0 Filter (Ctrl+O) / Tab-autocomplete UAT pass ---
+; Appended, not inserted above, so every line number the 1.0.2 checklist
+; references (P directive on line 4, header on line 6, etc.) stays correct.
+
+account expenses:rent
+account income:salary
+payee Landlord
+
+2026-08-15 Landlord
+    expenses:rent    750.00 EUR
+    assets:bank:checking
+
+2026-08-20 Employer
+    assets:bank:checking    2500.00 EUR
+    income:salary
+
+2024-04-01 Organic Grocer
+    expenses:food:organic    22.00 EUR
+    assets:bank:checking
