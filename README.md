@@ -16,24 +16,38 @@ Built with [Textual](https://textual.textualize.io/) and
 ## Features
 
 - Full-screen text editor with hledger syntax highlighting (dates, payees, accounts,
-  amounts, commodities, comments, directives)
+  amounts, commodities, comments, directives — including `P` price directives,
+  field-by-field)
 - Monokai Pro default theme; runtime theme switching supported
-- Incremental search with match highlighting (`Ctrl+F`, `Shift+PgUp/Down`)
+- Incremental search with match highlighting (`Ctrl+F`, `Shift+PgUp/Down`,
+  `Ctrl+C` to copy the current match)
 - View filter — show all / cleared-only / unreconciled-only transactions (`Ctrl+L`)
 - Transaction block selection and duplication (`Ctrl+T`, `Ctrl+G`)
 - Cleared status toggle — single transaction (3-state cycle) and bulk selection (`Ctrl+R`)
 - Insert today's date at cursor (`Ctrl+D`)
-- Date shifting with `Shift+Up` / `Shift+Down` (cursor-position-aware)
+- Date shifting with `Shift+Up` / `Shift+Down` (cursor-position-aware; works on
+  transaction headers and `P` price directives; expands an unpadded date like
+  `2026-9-1` to `2026-09-01` on first use)
 - Save with date-sort and whitespace re-alignment (`Ctrl+S`)
 - Undo / Redo (`Ctrl+Z` / `Ctrl+Y`)
 - Command palette (`Ctrl+P`)
 
 ### Planned / In Progress
 
-- Transaction filter popup (`Ctrl+O`) — UI stub only; criteria filtering not yet implemented
-- BalanceSidebar — account balance tree (wired up, threaded refresh on save)
-- RegisterPanel — account transaction register (wired up, last 500 rows)
-- Reconciliation mode
+See [ROADMAP.md](ROADMAP.md) for the full, current status — it's the
+source of truth this section summarizes, not the other way around.
+
+- Transaction filter (`Ctrl+O`) with smart dates and regex — implemented
+  on the unreleased `release/1.1.0` branch; the latest PyPI release still
+  has only the UI stub (criteria filtering not yet active)
+- Tab autocomplete for account/payee names — also on `release/1.1.0`,
+  unreleased
+- `Alt+P` / `Alt+N` transaction templates, month/year date-shift modifiers,
+  large-journal performance — not yet started
+
+No side-panel features (account balance tree, transaction register,
+reconciliation mode) are currently planned — they existed pre-v0.8.0 and
+were removed; see [ROADMAP.md](ROADMAP.md)'s "Window Panes" note.
 
 ---
 

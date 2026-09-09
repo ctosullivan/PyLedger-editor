@@ -2,6 +2,11 @@
 
 > **PROTECTED FILE** — Do not modify without explicit user approval.
 > See CLAUDE.md §Unauthorised Change Rule.
+> Last corrected 2026-09-09 against the actual `src/ledgerkit_editor/` tree
+> (approved fix — see `CHANGELOG.md [Unreleased]`). The widgets this file
+> previously documented under `BalanceSidebar`, `reconcile_actions`,
+> `reconcile_bar`, `reconcile_summary`, and `register_panel` were removed
+> in v0.8.0 and no longer exist; those sections have been dropped.
 
 This file documents the internal APIs exposed by `ledgerkit_editor` modules.
 It does NOT document ledgerkit's own API — see the
@@ -57,6 +62,17 @@ def parse_date_range(
 ) -> tuple[datetime.date | None, datetime.date | None]:
     """Parse an optional date-from / date-to pair.
 
+    A bounded calendar-period phrase ("last month", "today", "yesterday",
+    "this week", "last week", "this month", "this year", "last year",
+    "q1".."q4", "ytd", a year-month shorthand like "2026-02", or a month
+    name with or without a year like "sep 2026" — see _period_bounds())
+    used ALONE in one field auto-fills the other from that same period's
+    other end, so e.g. from_text="last month" with to_text=None resolves
+    to the whole of last month, not an open-ended floor. Filling both
+    fields explicitly is never overridden. A plain ISO date or relative
+    offset ("-7d") used alone stays open-ended — single points in time,
+    not spans.
+
     Raises:
         DateParseError: if either non-None string fails to parse.
     """
@@ -110,6 +126,78 @@ def apply_commodity_styles(
 
 ---
 
+## `ledgerkit_editor.utils.query_match`
+
+Local reimplementation of ledgerkit's substring-or-regex `Query` matching
+convention — `ledgerkit.reports._matches_pattern`/`_posting_matches` are
+private and not exported. See the module docstring for the "duplicate vs.
+wait for an upstream export" decision.
+
+### `matches_pattern`
+
+```python
+def matches_pattern(pattern: str, value: str) -> bool:
+    """True if pattern matches value using hledger substring/regex rules.
+
+    A pattern containing any regex metacharacter is compiled and matched via
+    re.search (case-insensitive); otherwise a case-insensitive substring match.
+
+    Raises:
+        re.error: if pattern looks like regex but doesn't compile.
+    """
+```
+
+### `build_transaction_predicate`
+
+```python
+def build_transaction_predicate(query: object) -> Callable[[object], bool]:
+    """Build a whole-transaction visibility predicate from a ledgerkit.Query.
+
+    Visible if: date within [date_from, date_to] (either may be None),
+    description matches payee, and (when account/not_account/depth is set)
+    at least one posting matches all of them.
+
+    Raises:
+        re.error: immediately, if account/not_account/payee looks like
+            regex but fails to compile — validated once up front.
+    """
+```
+
+---
+
+## `ledgerkit_editor.utils.journal_index`
+
+Account/payee name index for Tab autocomplete — a snapshot, not
+recomputed per keystroke. See the module docstring.
+
+### `JournalIndex`
+
+```python
+@dataclass
+class JournalIndex:
+    accounts: list[str] = field(default_factory=list)
+    payees: list[str] = field(default_factory=list)
+
+    def matching_accounts(self, prefix: str, limit: int = 8) -> list[str]:
+        """Accounts starting with prefix (case-insensitive), shortest first."""
+
+    def matching_payees(self, prefix: str, limit: int = 8) -> list[str]:
+        """Payees starting with prefix (case-insensitive), shortest first."""
+```
+
+### `build_journal_index`
+
+```python
+def build_journal_index(text: str) -> JournalIndex:
+    """Parse text and build a JournalIndex from declared_accounts/
+    declared_payees plus every account/description actually used.
+
+    Returns an empty JournalIndex if parsing fails entirely.
+    """
+```
+
+---
+
 ## `ledgerkit_editor.utils.ledger_io`
 
 ### `load_journal`
@@ -125,6 +213,13 @@ def load_journal(path: Path) -> Journal:
 def save_journal(path: Path, journal: Journal) -> None:
     """Serialise via ledgerkit.journal_to_text() and write to path."""
 ```
+
+Note: `JournalEditor`'s own load (`on_mount`) and save (`action_save`) do
+**not** currently call these — they read/write raw text directly and use
+`parse_string_lenient`/`transaction_to_text` (see "ledgerkit Integration
+Points" in `dev-docs/architecture.md`). `load_journal`/`save_journal` are a
+stable, separately-tested public utility, not part of the live app's own
+data flow.
 
 ### `align_posting_amounts`
 
@@ -248,7 +343,20 @@ class LedgerApp(App[None]):
         start_line: int | None = None,
         theme_name: str | None = None,
     ) -> None: ...
-    def action_toggle_filter(self) -> None: ...
+    def action_toggle_filter(self) -> None:
+        """Ctrl+O: mount or remove the FilterPopup overlay."""
+
+    def on_filter_popup_filter_applied(self, event: "FilterPopup.FilterApplied") -> None:
+        """Relays event.predicate to JournalEditor.apply_criteria_filter().
+
+        Lives here, not on JournalEditor, because FilterPopup is a
+        Screen-level sibling of JournalEditor (both mounted directly by
+        LedgerApp), not a child — its messages bubble to this App, not to
+        JournalEditor.
+        """
+
+    def on_filter_popup_filter_cleared(self, event: "FilterPopup.FilterCleared") -> None:
+        """Relays to JournalEditor.clear_criteria_filter(). Same rationale as above."""
 ```
 
 `start_line`: 1-indexed line to place the cursor on after the file loads.
@@ -263,33 +371,200 @@ def main(argv: list[str] | None = None) -> None:
 
 ---
 
-## `ledgerkit_editor.widgets.BalanceSidebar`
+## `ledgerkit_editor.widgets.JournalEditor` (`transaction_table.py`)
+
+`JournalEditor(DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin,
+AutocompleteMixin, Widget)` — deliberately thin itself; most of its
+effective API comes from the four mixins documented in their own sections
+below (Module Size Rule split — see `dev-docs/architecture.md`).
 
 ```python
-class BalanceSidebar(Widget):
-    def __init__(self, journal_path: Path) -> None: ...
-    async def refresh_balances(self) -> None: ...
-```
-
-## `ledgerkit_editor.widgets.JournalEditor`
-
-```python
-class JournalEditor(Widget):
+class JournalEditor(...):
     def __init__(self, journal_path: Path, start_line: int | None = None) -> None: ...
-    def action_toggle_cleared(self) -> None: ...
-    def action_save(self) -> None: ...
-    def action_autofill(self) -> None: ...
+
+    class SaveCompleted(Message):
+        """Posted after a successful Ctrl+S save."""
+
+    class FileModifiedChanged(Message):
+        """Posted when the modified state changes. Carries `modified: bool`."""
+
+    def action_save(self) -> None:
+        """Ctrl+S: merge any active filter, sort by date, re-align, write to disk.
+
+        Also calls rebuild_journal_index() (AutocompleteMixin) on success.
+        """
     def action_undo(self) -> None:
         """Consults CommandHistory first; falls through to LedgerTextArea.action_undo()."""
     def action_redo(self) -> None:
         """Consults CommandHistory first; falls through to LedgerTextArea.action_redo()."""
+    def action_blur_editor(self) -> None:
+        """Escape: dismiss autocomplete popup, else search bar, else unfocus — in that order."""
+    def action_open_search(self) -> None:
+        """Ctrl+F: open the search bar, or advance to the next match if already open."""
+    def action_select_all(self) -> None: ...
+    def action_prev_transaction(self) -> None:
+        """Shift+PageUp: previous transaction header, or previous search match if the bar is open."""
+    def action_next_transaction(self) -> None:
+        """Shift+PageDown: mirrors action_prev_transaction."""
+    def action_cursor_to_start(self) -> None: ...
+    def action_cursor_to_end(self) -> None: ...
+    def action_insert_today(self) -> None: ...
+```
+
+### `DateShiftMixin` (`widgets/date_shift.py`)
+
+```python
+class DateShiftMixin:
+    def action_date_shift_up(self) -> None:
+        """Shift+Up: increment the date sub-field under the cursor."""
+    def action_date_shift_down(self) -> None:
+        """Shift+Down: decrement. Both: header or P-directive date; expands
+        an unpadded date (e.g. "2026-9-1") to zero-padded form on first use.
+        Falls through to text selection when the cursor isn't on a date field.
+        """
+```
+
+Also exports pure helpers: `_shift_date_str`, `_date_subfield_at_col`,
+`_normalize_date_str`, and the regexes `_TXN_HEADER_RE`,
+`_PRICE_DIRECTIVE_RE`, `_DATE_PARSE_RE` — see the module for full
+docstrings/regex-doc-comments.
+
+### `TransactionBlocksMixin` (`widgets/transaction_blocks.py`)
+
+```python
+class TransactionBlocksMixin:
+    def action_toggle_cleared(self) -> None:
+        """Ctrl+R: 3-state cycle on one header, or bulk-toggle over a multi-block selection."""
+    def action_select_transaction_block(self) -> None:
+        """Ctrl+T: select the block at the cursor; each repeated press extends to the next block."""
+    def action_autofill(self) -> None:
+        """Ctrl+G: duplicate the current (or all selected) transaction block(s) to end of file, today's date."""
+```
+
+Also exports `_find_transaction_block(lines, row) -> tuple[int, int]` and
+`_cycle_flag_in_header(line) -> str` (pure functions).
+
+### `ViewFilterMixin` (`widgets/view_filter.py`)
+
+```python
+class ViewFilterMixin:
+    def action_cycle_view_filter(self) -> None:
+        """Ctrl+L: All -> Cleared -> Unreconciled -> All. Combines (AND)
+        with any active Ctrl+O criteria filter rather than replacing it."""
+
+    def apply_criteria_filter(self, predicate: Callable[[object], bool]) -> None:
+        """Set (or replace) the Ctrl+O criteria predicate. Combines (AND)
+        with any active Ctrl+L cleared/uncleared mode rather than
+        replacing it."""
+
+    def clear_criteria_filter(self) -> None:
+        """Remove just the Ctrl+O criteria predicate. Any active Ctrl+L
+        mode is left untouched. No-op if no criteria filter is active."""
+
+    @property
+    def _filter_is_active(self) -> bool:
+        """True if either dimension (Ctrl+L mode != 0, or a Ctrl+O
+        predicate) is currently filtering the view."""
+```
+
+Ctrl+L and Ctrl+O share one parse→hide→merge-edits-back→restore engine.
+They are two INDEPENDENT dimensions that combine with AND when both are
+active (e.g. "Cleared only" narrowed further by a Ctrl+O account filter) —
+reversed from Phase 3's original mutually-exclusive "replace" semantics
+per UAT feedback; see `planning/next-release-phase-plan.md`'s Phase 3
+"Interaction with Ctrl+L" note for the history. `ViewFilterBar.set_combined()`
+composes the status-bar label from both dimensions.
+
+### `AutocompleteMixin` (`widgets/autocomplete.py`)
+
+```python
+class AutocompleteMixin:
+    def rebuild_journal_index(self) -> None:
+        """Recompute self._journal_index from the current TextArea text."""
+
+    def action_autocomplete(self) -> None:
+        """Tab: insert/cycle a completion (bash-style — see module docstring
+        for why not an Up/Down dropdown), or fall through to normal
+        focus-cycling when there's nothing completable at the cursor."""
+
+    def dismiss_autocomplete(self) -> None:
+        """Hide the suggestion bar and forget the current anchor, if any."""
+```
+
+Also exports the pure `_completion_context(line, col, kind) ->
+tuple[str, str, int] | None` — decides whether/what to complete at a
+cursor position; see its docstring for the exact (index_kind, partial,
+start_col) contract.
+
+### `ViewFilterBar` (`widgets/view_filter_bar.py`)
+
+```python
+class ViewFilterBar(Widget):
+    """1-row status bar describing the active Ctrl+L mode and/or Ctrl+O
+    criteria filter — the two combine, so this may describe both at once."""
+    def set_mode(self, mode: int) -> None:
+        """Update the label for a fixed Ctrl+L mode (0=All, 1=Cleared, 2=Unreconciled)."""
+    def set_label(self, text: str) -> None:
+        """Set an arbitrary label directly."""
+    def set_combined(
+        self,
+        mode: int,
+        criteria_active: bool,
+        visible_count: int | None = None,
+        total_count: int | None = None,
+    ) -> None:
+        """Compose one label from the Ctrl+L mode, whether Ctrl+O is also
+        active, and (when both counts given) a "(visible/total)" suffix —
+        what ViewFilterMixin actually calls after any change to either
+        filter dimension."""
+```
+
+### `AutocompletePopup` (`widgets/autocomplete_popup.py`)
+
+```python
+class AutocompletePopup(Widget):
+    """Bottom-docked, non-focusable Tab-autocomplete suggestion bar (can_focus = False)."""
+    def show(self, candidates: list[str]) -> None:
+        """Reveal with candidates, selecting the first. No-op if candidates is empty."""
+    def hide(self) -> None:
+        """Hide the bar and clear its candidates."""
+    def cycle_next(self) -> str | None:
+        """Advance to the next candidate (wrapping), return it, or None if none."""
+    @property
+    def is_showing(self) -> bool: ...
+    @property
+    def selected_candidate(self) -> str | None: ...
+    @property
+    def candidates(self) -> list[str]: ...
 ```
 
 ## `ledgerkit_editor.widgets.FilterPopup`
 
 ```python
 class FilterPopup(Widget):
-    def apply_filter(self) -> None: ...
+    """Ctrl+O overlay — date-range, account, and payee filter fields."""
+
+    class FilterApplied(Message):
+        """Carries a pre-validated predicate (Callable[[Transaction], bool]),
+        built via query_match.build_transaction_predicate() — not a raw Query.
+        A DateParseError or re.error is caught and notified inside apply_filter()
+        itself, before this is ever posted."""
+
+    class FilterCleared(Message):
+        """Posted by the Clear button."""
+
+    def apply_filter(self) -> None:
+        """Read field values, build+validate a predicate, post FilterApplied.
+        Empty fields become None (no filter on that dimension)."""
+
+    def action_complete_field(self) -> None:
+        """Tab: complete the focused Account/Payee Input's whole value
+        against JournalEditor._journal_index (read live via
+        self.app.query_one), cycling to the next match on repeated presses.
+        Falls through to ordinary focus-cycling for any other focused
+        field, or when there's no match — same convention as
+        AutocompleteMixin.action_autocomplete, applied to a single-line
+        Input's entire value instead of a token within a larger line."""
 ```
 
 ---
@@ -348,123 +623,15 @@ class SearchBar(Widget):
 
     def advance_to_transaction(self, direction: int = 1) -> None:
         """Jump to the next transaction block that contains a match (Alt+F3)."""
-```
 
----
+    def action_copy_match(self) -> None:
+        """Ctrl+C: copy the current match's text to the clipboard.
 
-## `ledgerkit_editor.widgets.reconcile_actions`
-
-### `_find_transaction_header_above`
-
-```python
-def _find_transaction_header_above(
-    line_infos: list, row: int
-) -> int | None:
-    """Walk line_infos backwards from row to find the nearest XACT_HEADER.
-
-    Returns:
-        Row index of the header, or None if no header found above.
-    """
-```
-
-### `_build_reconcile_document`
-
-```python
-def _build_reconcile_document(
-    transactions: list,
-) -> tuple[str, dict[int, int]]:
-    """Serialise transactions into a reconcile editor document.
-
-    Returns:
-        (text, line_to_tx) where line_to_tx maps each transaction's header
-        line number → its index in the transactions list.
-    """
-```
-
-### `ReconcileMixin`
-
-```python
-class ReconcileMixin:
-    """Mixin providing reconcile-mode methods for JournalEditor."""
-
-    def enter_reconcile_mode(self, account: str) -> None:
-        """Load reconcile view for account, make textarea read-only."""
-
-    def exit_reconcile_mode(self, commit: bool) -> None:
-        """Exit reconcile mode. If commit=True, apply cleared flags to journal."""
-
-    def action_commit_reconcile(self) -> None:
-        """Ctrl+Enter: commit and exit reconcile mode."""
-
-    def action_cancel_reconcile(self) -> None:
-        """Escape: cancel and exit reconcile mode."""
-
-    def action_reconcile_mark_all_cleared(self) -> None:
-        """Ctrl+A in reconcile mode: mark all transactions cleared."""
-```
-
----
-
-## `ledgerkit_editor.widgets.reconcile_bar`
-
-### `ReconcileStatusBar`
-
-```python
-class ReconcileStatusBar(Widget):
-    """One-line status bar shown above JournalEditor during reconcile mode.
-
-    Displays: account | checked balance | target input | Δ delta.
-    """
-
-    class TargetChanged(Message):
-        """Posted when the user edits the reconcile target amount."""
-        target: Decimal
-
-    def set_reconcile_data(self, account: str, transactions: list) -> None:
-        """Initialise the bar for a new reconcile session."""
-```
-
----
-
-## `ledgerkit_editor.widgets.reconcile_summary`
-
-### `ReconcileSummary`
-
-```python
-class ReconcileSummary(Widget):
-    """Four-value reconciliation summary shown in RegisterPanel during reconcile mode.
-
-    Displays: cleared balance, unreconciled count/net, pending count/net,
-    difference vs target.
-    """
-
-    def set_reconcile_data(self, account: str, transactions: list) -> None:
-        """Initialise for a new reconcile session."""
-
-    def refresh_totals(self, tx: object, account: str) -> None:
-        """Recompute all summary values after a TransactionClearedToggled event."""
-
-    def set_target(self, target: Decimal) -> None:
-        """Update the target balance."""
-```
-
----
-
-## `ledgerkit_editor.widgets.register_panel` (updated)
-
-### `_cached_register_rows`
-
-```python
-@lru_cache(maxsize=32)
-def _cached_register_rows(
-    journal_path: str, account: str, mtime: float
-) -> list[tuple[str, str, str, str]]:
-    """Load and cache register rows from disk.
-
-    Cache key includes mtime so rows are automatically invalidated after
-    a Ctrl+S save. The live-update path (refresh_account_from_text) bypasses
-    this cache and parses in-memory text directly.
-    """
+        Only reached when the focused #search-input Input has no selection
+        of its own (Input.action_copy() raises SkipAction in that case).
+        Deliberately non-priority — see the module's BINDINGS comment.
+        No-op if there's no active match.
+        """
 ```
 
 ---

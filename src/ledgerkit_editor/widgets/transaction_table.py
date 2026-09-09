@@ -4,15 +4,23 @@ Shows raw journal text in a LedgerTextArea. Ctrl+L cycles the editor view
 between All, Cleared, and Unreconciled transactions without leaving the editor.
 Search bar (Ctrl+F) is implemented in SearchBar (search_bar.py). View filter bar
 is implemented in ViewFilterBar (view_filter_bar.py).
+
+JournalEditor itself stays deliberately thin — BINDINGS, message classes,
+init/mount orchestration, save, and cursor tracking. Larger, more separable
+concerns are provided via mixins (Module Size Rule split, Phase 2 of
+planning/next-release-phase-plan.md):
+  - DateShiftMixin (date_shift.py) — Shift+Up/Down date-field shifting
+  - ViewFilterMixin (view_filter.py) — Ctrl+L cleared/uncleared cycle
+  - TransactionBlocksMixin (transaction_blocks.py) — Ctrl+T/Ctrl+G/Ctrl+R
+  - AutocompleteMixin (autocomplete.py) — Tab account/payee autocomplete
+    (Phase 4a)
 """
 
 from __future__ import annotations
 
-import calendar
 import re
 import time as _time
 from datetime import date as _date
-from datetime import timedelta
 from pathlib import Path
 
 from textual.app import ComposeResult
@@ -22,44 +30,16 @@ from textual.widget import Widget
 from textual.widgets import TextArea
 
 from ledgerkit_editor.highlighting.highlighter import LineKind
+from ledgerkit_editor.utils.journal_index import JournalIndex
+from ledgerkit_editor.widgets.autocomplete import AutocompleteMixin
+from ledgerkit_editor.widgets.autocomplete_popup import AutocompletePopup
+from ledgerkit_editor.widgets.date_shift import DateShiftMixin
 from ledgerkit_editor.widgets.ledger_textarea import LedgerTextArea
+from ledgerkit_editor.widgets.transaction_blocks import TransactionBlocksMixin
+from ledgerkit_editor.widgets.view_filter import ViewFilterMixin
 from ledgerkit_editor.widgets.view_filter_bar import ViewFilterBar
 
 __all__ = ["JournalEditor"]
-
-# Purpose: parse an hledger transaction header line to extract and cycle the
-#   status flag while preserving the date, code, description, and comments.
-# Group breakdown:
-#   group 1 — date segment (YYYY-MM-DD or YYYY/MM/DD; month/day accept 1 or 2
-#             digits so an unpadded date like "2026-9-1" still matches)
-#   group 2 — status flag (* or !) — absent (None) when the transaction is uncleared
-#   group 3 — remainder: optional code (INV-42), description, inline comment
-# Edge cases: date-only lines match with empty group 3; posting lines (leading
-#   whitespace) must never be passed here — the caller is responsible for that
-#   guard. Group 1 may be shorter than 10 chars for unpadded dates — callers
-#   that shift the date normalise it to zero-padded form first (see
-#   _normalize_date_str).
-_TXN_HEADER_RE = re.compile(
-    r"^(\d{4}[-/]\d{1,2}[-/]\d{1,2})\s*(\*|!)?\s*(.*)"
-)
-
-# Matches a P (market price) directive line and captures its date argument.
-# Purpose: locate the date portion of a price directive so Shift+Up/Down can
-#   shift it the same way it shifts a transaction header date — P directives
-#   are classified as the generic LineKind.DIRECTIVE by the highlighter (see
-#   highlighting/highlighter.py's _DIRECTIVE_RE), which does not expose where
-#   the date starts, so this dedicated regex is needed to find it.
-# Group breakdown:
-#   (1) \d{4}[-/]\d{1,2}[-/]\d{1,2} — the directive's date argument; month/day
-#       accept 1 or 2 digits, same as _TXN_HEADER_RE
-# Edge cases:
-#   - "P 2026-09-01 EUR 1.08 USD" — group 1 = "2026-09-01" (commodity/rate
-#     ignored; only the date span is needed for shifting)
-#   - "P 2026-9-1 EUR 1.08 USD" — group 1 = "2026-9-1" (unpadded; normalised
-#     by _normalize_date_str before shifting)
-#   - Requires exactly one or more spaces between "P" and the date; a bare
-#     "P" with no date does not match, so it falls through to plain selection
-_PRICE_DIRECTIVE_RE = re.compile(r"^P\s+(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b")
 
 # Purpose: split an hledger posting line at the account/amount boundary.
 #   hledger requires at least two spaces (or a tab) between the account name
@@ -68,30 +48,6 @@ _PRICE_DIRECTIVE_RE = re.compile(r"^P\s+(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b")
 #   returning the full stripped line as the account name. Caller must strip
 #   the leading indent before splitting.
 _POSTING_SPLIT_RE = re.compile(r"\s{2,}|\t")
-
-
-def _cycle_flag_in_header(line: str) -> str:
-    """Return line with the cleared/pending flag cycled: none → ! → * → none.
-
-    Returns the original line unchanged if it does not match the header format.
-    """
-    m = _TXN_HEADER_RE.match(line)
-    if not m:
-        return line
-    date_str, current_flag, rest = m.group(1), m.group(2), m.group(3)
-    if current_flag is None:
-        new_flag: str | None = "!"
-    elif current_flag == "!":
-        new_flag = "*"
-    else:
-        new_flag = None
-
-    parts = [date_str]
-    if new_flag:
-        parts.append(new_flag)
-    if rest:
-        parts.append(rest)
-    return " ".join(parts)
 
 
 def _extract_account_from_line(line: str) -> str | None:
@@ -118,135 +74,9 @@ def _account_at_cursor(textarea: TextArea) -> str | None:
     return _extract_account_from_line(lines[row])
 
 
-# Purpose: locate the start and end rows of the hledger transaction block
-#   containing the given row. A block begins at the first non-indented,
-#   non-blank line at or above `row` (the header) and ends at the last
-#   consecutive indented line below the header (the postings).
-# Returns: (start_row, end_row) — both are valid indices into `lines`.
-# Edge cases: blank lines between postings are treated as block terminators;
-#   a row with no header above it returns (0, end_row); an empty list
-#   returns (0, 0); `row` is clamped to [0, len(lines)-1].
-def _find_transaction_block(lines: list[str], row: int) -> tuple[int, int]:
-    """Return (start_row, end_row) of the transaction block containing row."""
-    if not lines:
-        return (0, 0)
-    row = max(0, min(row, len(lines) - 1))
-    start = row
-    while start > 0 and (not lines[start] or lines[start][0].isspace()):
-        start -= 1
-    end = start
-    total = len(lines)
-    while end + 1 < total:
-        next_line = lines[end + 1]
-        if not next_line or not next_line[0].isspace():
-            break
-        end += 1
-    return (start, end)
-
-
-# Column each sub-field starts at within a canonical zero-padded 10-char date
-# (YYYY-MM-DD). Used to reposition the cursor within a subfield after
-# _normalize_date_str pads a date, since padding can change every column
-# after the year.
-_DATE_FIELD_START = {"year": 0, "month": 5, "day": 8}
-
-
-def _date_subfield_at_col(date_str: str, col: int) -> str | None:
-    """Return 'year', 'month', or 'day' for a cursor column within date_str.
-
-    Field boundaries are derived from date_str's own separator positions
-    (via _DATE_PARSE_RE) rather than assumed to be a fixed 10-char layout, so
-    this also works for unpadded dates like "2026-9-1" before they've been
-    normalised. Separators are assigned to the field on their right — e.g. in
-    "2024-01-15" col 4 (the first '-') → month, col 7 (the second '-') → day.
-    Returns None when col is negative or outside the date, or date_str
-    doesn't match the date grammar at all.
-    """
-    if col < 0:
-        return None
-    m = _DATE_PARSE_RE.match(date_str)
-    if not m:
-        return None
-    year, _sep1, month, _sep2, day = m.groups()
-    month_start = len(year)  # separator index; assigned to "month"
-    day_start = month_start + 1 + len(month)  # second separator index
-    date_end = day_start + 1 + len(day)
-    if col < month_start:
-        return "year"
-    if col < day_start:
-        return "month"
-    if col < date_end:
-        return "day"
-    return None
-
-
-# Purpose: parse an hledger date string of the form YYYY<sep>M[M]<sep>D[D],
-#   where <sep> is any single character (typically '-', '/', or '.'), into
-#   year/month/day components. Month and day accept 1 or 2 digits so unpadded
-#   dates like "2026-9-1" parse alongside the canonical zero-padded form.
-# Group breakdown:
-#   (1) \d{4}   — four-digit year
-#   (2) .       — first separator (captured, not assumed to be '-')
-#   (3) \d{1,2} — month, 1 or 2 digits
-#   (4) .       — second separator (captured independently of group 2)
-#   (5) \d{1,2} — day, 1 or 2 digits
-# Edge cases:
-#   - "2026-9-1" matches: groups = ("2026", "-", "9", "-", "1")
-#   - Mismatched separators like "2024-01/15" still match (group 2 != group
-#     4); _shift_date_str deliberately normalises output to use group 2's
-#     separator for both positions, matching its pre-existing behaviour
-#   - date_str must be exactly year-sep-month-sep-day with no extra
-#     characters ($ anchor); callers slice out just the date substring first
-_DATE_PARSE_RE = re.compile(r"^(\d{4})(.)(\d{1,2})(.)(\d{1,2})$")
-
-
-def _normalize_date_str(date_str: str) -> str:
-    """Return date_str with month and day zero-padded to 2 digits.
-
-    Always produces a canonical 10-character YYYY-MM-DD (or YYYY/MM/DD, per
-    the original separator) string. Returns date_str unchanged if it doesn't
-    match the date grammar. Used to expand an unpadded date (e.g. "2026-9-1")
-    to "2026-09-01" the first time it's shifted with Shift+Up/Down.
-    """
-    m = _DATE_PARSE_RE.match(date_str)
-    if not m:
-        return date_str
-    year, sep, month, _sep2, day = m.groups()
-    return f"{year}{sep}{int(month):02d}{sep}{int(day):02d}"
-
-
-def _shift_date_str(date_str: str, subfield: str, delta: int) -> str:
-    """Return date_str with the given sub-field shifted by delta, separator preserved.
-
-    Month-end overflow is clamped: Jan 31 + 1 month → Feb 28/29. Year shift
-    clamps Feb 29 on a leap year to Feb 28 on a non-leap year. Accepts
-    unpadded input (e.g. "2026-9-1") but always returns zero-padded output,
-    since the day/month components are always formatted with :02d below.
-    """
-    m = _DATE_PARSE_RE.match(date_str)
-    if not m:
-        return date_str
-    year, sep, month, _sep2, day = m.groups()
-    y, mo, d = int(year), int(month), int(day)
-
-    if subfield == "day":
-        new = _date(y, mo, d) + timedelta(days=delta)
-        return f"{new.year:04d}{sep}{new.month:02d}{sep}{new.day:02d}"
-
-    if subfield == "month":
-        total = (y * 12 + mo - 1) + delta
-        new_y, new_m0 = divmod(total, 12)
-        new_mo = new_m0 + 1
-        max_d = calendar.monthrange(new_y, new_mo)[1]
-        return f"{new_y:04d}{sep}{new_mo:02d}{sep}{min(d, max_d):02d}"
-
-    # subfield == "year"
-    new_y = y + delta
-    max_d = calendar.monthrange(new_y, mo)[1]
-    return f"{new_y:04d}{sep}{mo:02d}{sep}{min(d, max_d):02d}"
-
-
-class JournalEditor(Widget):
+class JournalEditor(
+    DateShiftMixin, ViewFilterMixin, TransactionBlocksMixin, AutocompleteMixin, Widget
+):
     """Full-text editor for hledger journal files.
 
     Loads the raw journal file into a LedgerTextArea. Ctrl+S validates, sorts
@@ -258,7 +88,16 @@ class JournalEditor(Widget):
     """
 
     BINDINGS = [
-        Binding("ctrl+s", "save", "Save", key_display="Ctrl+S"),
+        # show=False: Ctrl+S is universally known and doesn't need footer
+        # real estate. Textual's Footer is a horizontally-scrolling
+        # container with an invisible scrollbar (scrollbar-size: 0 0) — a
+        # binding that doesn't fit the visible width silently scrolls out
+        # of view rather than being dropped, so anything low-priority to
+        # *see* (as opposed to use) should free up the room. UAT flagged
+        # this specifically for Ctrl+O (App-level, and since App bindings
+        # are appended after widget-level ones in the footer's binding
+        # order, the least likely to fit) — hiding this is the direct fix.
+        Binding("ctrl+s", "save", "Save", key_display="Ctrl+S", show=False),
         Binding("ctrl+r", "toggle_cleared", "Toggle cleared", key_display="Ctrl+R"),
         Binding("ctrl+g", "autofill", "Duplicate to end", key_display="Ctrl+G"),
         Binding("ctrl+d", "insert_today", "Insert date",
@@ -293,6 +132,11 @@ class JournalEditor(Widget):
         # Falls through to selection when cursor is not on a date field.
         Binding("shift+up", "date_shift_up", "Date up", show=False, priority=True),
         Binding("shift+down", "date_shift_down", "Date down", show=False, priority=True),
+        # Tab autocomplete — Tab is otherwise a near-no-op in this single-pane
+        # editor (see AutocompleteMixin's docstring), so it's safe to reclaim
+        # here; action_autocomplete() falls through to normal focus-cycling
+        # when there's nothing to complete.
+        Binding("tab", "autocomplete", "Autocomplete", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -341,22 +185,31 @@ class JournalEditor(Widget):
         self._current_account: str | None = None
         self._last_saved_text: str = ""
         self._command_history: CommandHistory = CommandHistory()
-        # View filter state
+        # View filter state (read/written by ViewFilterMixin, view_filter.py).
+        # Ctrl+L's mode and Ctrl+O's predicate are independent dimensions
+        # that combine with AND — see ViewFilterMixin._filter_is_active.
         self._view_filter_mode: int = 0          # 0=All, 1=Cleared, 2=Unreconciled
         self._filter_journal: object | None = None
         self._filter_visible_indices: list[int] = []
         # Non-transaction blocks (directives, comments, blank-line separators)
         # captured when entering a filter so they survive the mode-0 restore.
         self._filter_non_txn_blocks: list[str] = []
+        # Ctrl+O criteria filter predicate; None means no criteria filter.
+        self._active_predicate = None
+        # Tab-autocomplete state (AutocompleteMixin, autocomplete.py). Index
+        # is rebuilt on load and after each save, not per keystroke.
+        self._journal_index: JournalIndex = JournalIndex()
+        self._autocomplete_anchor: tuple[int, int] | None = None
         # (commodity styles are now computed per-save from the current text)
 
     def compose(self) -> ComposeResult:
-        """Render ViewFilterBar, LedgerTextArea, and hidden SearchBar."""
+        """Render ViewFilterBar, LedgerTextArea, hidden SearchBar and AutocompletePopup."""
         from ledgerkit_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
 
         yield ViewFilterBar()
         yield LedgerTextArea(id="journal_textarea", show_line_numbers=True)
         yield SearchBar(id="search-bar")
+        yield AutocompletePopup()
 
     def on_mount(self) -> None:
         """Load the raw journal text into the TextArea and focus it."""
@@ -364,6 +217,7 @@ class JournalEditor(Widget):
         textarea = self.query_one("#journal_textarea", TextArea)
         textarea.load_text(text)
         self._last_saved_text = text
+        self.rebuild_journal_index()
         textarea.focus()
         # Defer the cursor seek: move_cursor here would set the document
         # position correctly but scroll_cursor_visible is a no-op before the
@@ -414,10 +268,6 @@ class JournalEditor(Widget):
         self.post_message(self.FileModifiedChanged(modified=modified))
 
     # ------------------------------------------------------------------
-    # Key actions — file operations
-    # ------------------------------------------------------------------
-
-    # ------------------------------------------------------------------
     # Undo / redo — two-layer stack
     # ------------------------------------------------------------------
 
@@ -448,8 +298,14 @@ class JournalEditor(Widget):
             textarea.action_redo()
 
     def action_blur_editor(self) -> None:
-        """Escape: dismiss search bar if open, else unfocus."""
+        """Escape: dismiss autocomplete popup, else search bar, else unfocus."""
+        from ledgerkit_editor.widgets.autocomplete_popup import AutocompletePopup  # noqa: PLC0415
         from ledgerkit_editor.widgets.search_bar import SearchBar  # noqa: PLC0415
+
+        popup = self.query_one(AutocompletePopup)
+        if popup.is_showing:
+            self.dismiss_autocomplete()
+            return
 
         search_bar = self.query_one("#search-bar", SearchBar)
         if search_bar.display:
@@ -457,67 +313,9 @@ class JournalEditor(Widget):
             return
         self.app.set_focus(None)
 
-    def action_toggle_cleared(self) -> None:
-        """Cycle or bulk-toggle the cleared flag on transaction header(s).
-
-        Single-transaction cycle: none → '!' → '*' → none.
-        Multi-transaction bulk-toggle: all cleared → all uncleared; otherwise → all '*'.
-        """
-        textarea = self.query_one("#journal_textarea", TextArea)
-        sel = textarea.selection
-        start_row = min(sel.start[0], sel.end[0])
-        end_row = max(sel.start[0], sel.end[0])
-        if end_row > start_row:
-            self._bulk_toggle_cleared(textarea, start_row, end_row)
-        else:
-            row, _ = textarea.cursor_location
-            lines = textarea.text.splitlines()
-            if row >= len(lines):
-                return
-            line = lines[row]
-            if not line or line[0].isspace():
-                return
-            new_line = _cycle_flag_in_header(line)
-            if new_line != line:
-                textarea.replace(new_line, (row, 0), (row, len(line)))
-
-    def _bulk_toggle_cleared(
-        self, textarea: TextArea, start_row: int, end_row: int
-    ) -> None:
-        """Toggle cleared flag on all transaction headers within [start_row, end_row].
-
-        If every header in the range is already cleared, remove all flags.
-        Otherwise set all headers to '*' (cleared).
-        Changes are applied in reverse row order so earlier row indices stay valid.
-        """
-        lines = textarea.text.splitlines()
-        header_rows = [
-            i for i in range(start_row, end_row + 1)
-            if i < len(lines)
-            and lines[i]
-            and not lines[i][0].isspace()
-            and _TXN_HEADER_RE.match(lines[i])
-        ]
-        if not header_rows:
-            return
-        all_cleared = all(
-            _TXN_HEADER_RE.match(lines[r]).group(2) == "*"  # type: ignore[union-attr]
-            for r in header_rows
-        )
-        new_flag: str | None = None if all_cleared else "*"
-        from ledgerkit_editor.utils.atomic_edit import atomic_edit  # noqa: PLC0415
-        with atomic_edit(textarea):
-            for r in reversed(header_rows):
-                m = _TXN_HEADER_RE.match(lines[r])
-                if not m:
-                    continue
-                parts = [m.group(1)]
-                if new_flag:
-                    parts.append(new_flag)
-                if m.group(3):
-                    parts.append(m.group(3))
-                new_line = " ".join(parts)
-                textarea.replace(new_line, (r, 0), (r, len(lines[r])))
+    # ------------------------------------------------------------------
+    # Key actions — save
+    # ------------------------------------------------------------------
 
     def action_save(self) -> None:
         """Validate, sort by date, and write the journal to disk.
@@ -529,10 +327,13 @@ class JournalEditor(Widget):
         """
         import ledgerkit  # noqa: PLC0415
 
-        # Merge filtered edits into full journal before saving.
-        if self._view_filter_mode != 0:
+        # Merge filtered edits into full journal before saving (covers both
+        # a Ctrl+L cleared/uncleared filter and a Ctrl+O criteria filter,
+        # combined or either alone — see ViewFilterMixin._filter_is_active).
+        if self._filter_is_active:
             ta = self.query_one("#journal_textarea", LedgerTextArea)
             self._merge_filtered_edits(ta)
+            self._active_predicate = None
             self._view_filter_mode = 0
             self._apply_view_filter(ta)
 
@@ -585,6 +386,7 @@ class JournalEditor(Widget):
             self.app.notify(err.message, severity="warning")
 
         self._last_saved_text = sorted_text
+        self.rebuild_journal_index()
         self.post_message(self.SaveCompleted())
         self.post_message(self.FileModifiedChanged(modified=False))
         self.app.notify("Saved", severity="information")
@@ -604,113 +406,6 @@ class JournalEditor(Widget):
             bar.open_bar()
 
     # ------------------------------------------------------------------
-    # Key actions — view filter
-    # ------------------------------------------------------------------
-
-    def action_cycle_view_filter(self) -> None:
-        """Cycle editor view: All → Cleared → Unreconciled → All (Ctrl+L)."""
-        import ledgerkit  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", LedgerTextArea)
-
-        if self._view_filter_mode == 0:
-            # Entering a filtered view — snapshot the full journal and the
-            # non-transaction blocks so directives/comments survive mode-0 restore.
-            self._filter_journal, _ = ledgerkit.parse_string_lenient(textarea.text)
-            from ledgerkit_editor.utils.ledger_io import split_journal_segments  # noqa: PLC0415
-            self._filter_non_txn_blocks, _ = split_journal_segments(
-                textarea.text, self._filter_journal.transactions  # type: ignore[union-attr]
-            )
-        else:
-            # Already filtered — merge edits before switching.
-            self._merge_filtered_edits(textarea)
-
-        self._view_filter_mode = (self._view_filter_mode + 1) % 3
-        self._apply_view_filter(textarea)
-
-    def _apply_view_filter(self, textarea: LedgerTextArea) -> None:
-        """Rebuild textarea content from _filter_journal for the current mode."""
-        import ledgerkit  # noqa: PLC0415
-
-        journal = self._filter_journal
-
-        if self._view_filter_mode == 0:
-            # Restore full journal, preserving directives/comments/blank-line
-            # separators captured in _filter_non_txn_blocks at filter entry.
-            if journal is not None:
-                blocks = self._filter_non_txn_blocks
-                txns = journal.transactions
-                if blocks and len(blocks) == len(txns) + 1:
-                    # Exact match: weave non-txn blocks between transactions.
-                    txn_texts = [ledgerkit.transaction_to_text(t) for t in txns]
-                    parts = [blocks[0]]
-                    for i, txn_text in enumerate(txn_texts):
-                        parts.append(txn_text)
-                        parts.append(blocks[i + 1])
-                    full_text = "".join(parts)
-                elif blocks:
-                    # Count mismatch (txns added/deleted in filtered view):
-                    # preserve preamble, fall back to journal_to_text for body.
-                    full_text = blocks[0] + ledgerkit.journal_to_text(journal)
-                else:
-                    full_text = ledgerkit.journal_to_text(journal)
-            else:
-                full_text = textarea.text
-            self._filter_journal = None
-            self._filter_non_txn_blocks = []
-            self._filter_visible_indices = []
-            textarea.load_text(full_text)
-        else:
-            if journal is None:
-                return
-            want_cleared = self._view_filter_mode == 1
-            visible: list[tuple[int, object]] = [
-                (i, tx) for i, tx in enumerate(journal.transactions)
-                if (tx.cleared if want_cleared else not tx.cleared)  # type: ignore[union-attr]
-            ]
-            self._filter_visible_indices = [i for i, _ in visible]
-            parts = [ledgerkit.transaction_to_text(tx) for _, tx in visible]
-            filtered_text = "\n".join(parts)
-            textarea.load_text(filtered_text)
-
-        self._update_filter_bar()
-
-    def _merge_filtered_edits(self, textarea: LedgerTextArea) -> None:
-        """Merge textarea edits back into _filter_journal before a filter change."""
-        import ledgerkit  # noqa: PLC0415
-
-        if self._filter_journal is None:
-            return
-        visible_journal, _ = ledgerkit.parse_string_lenient(textarea.text)
-        visible_txs = visible_journal.transactions
-        all_txs: list = list(self._filter_journal.transactions)  # type: ignore[union-attr]
-
-        # Replace tracked slots with edited versions.
-        for slot, idx in enumerate(self._filter_visible_indices):
-            if slot < len(visible_txs):
-                all_txs[idx] = visible_txs[slot]
-
-        # Append any newly added transactions beyond the original visible count.
-        new_txs = visible_txs[len(self._filter_visible_indices):]
-        all_txs.extend(new_txs)
-
-        # Remove deleted transactions (visible slots with no counterpart in edited view).
-        deleted = self._filter_visible_indices[len(visible_txs):]
-        for idx in sorted(deleted, reverse=True):
-            if idx < len(all_txs):
-                del all_txs[idx]
-
-        all_txs.sort(key=lambda tx: tx.date)  # type: ignore[union-attr]
-        self._filter_journal.transactions = all_txs  # type: ignore[union-attr]
-
-    def _update_filter_bar(self) -> None:
-        """Refresh the ViewFilterBar label after a filter change."""
-        try:
-            self.query_one(ViewFilterBar).set_mode(self._view_filter_mode)
-        except Exception:  # noqa: BLE001
-            pass
-
-    # ------------------------------------------------------------------
     # Key actions — navigation and editing
     # ------------------------------------------------------------------
 
@@ -724,66 +419,6 @@ class JournalEditor(Widget):
             return
         last_row = len(lines) - 1
         textarea.selection = Selection((0, 0), (last_row, len(lines[last_row])))
-
-    def action_autofill(self) -> None:
-        """Duplicate current or all selected transactions to end of file (Ctrl+G).
-
-        Single cursor: duplicates the one transaction block at the cursor.
-        Multi-line selection (e.g. from repeated Ctrl+T): duplicates every
-        transaction block whose header falls within the selection range.
-        Each duplicate gets today's date on its header line.
-        """
-        from datetime import date as _date  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", LedgerTextArea)
-        sel = textarea.selection
-        lines = textarea.text.splitlines()
-        if not lines:
-            return
-        today = _date.today().isoformat()
-
-        sel_start = min(sel.start[0], sel.end[0])
-        sel_end = max(sel.start[0], sel.end[0])
-
-        if sel_start < sel_end:
-            line_infos = textarea._highlighter._line_infos
-            seen: set[int] = set()
-            blocks: list[tuple[int, int]] = []
-            for r in range(sel_start, min(sel_end + 1, len(line_infos))):
-                if line_infos[r].kind == LineKind.XACT_HEADER and r not in seen:
-                    start_r, end_r = _find_transaction_block(lines, r)
-                    for br in range(start_r, end_r + 1):
-                        seen.add(br)
-                    blocks.append((start_r, end_r))
-            if not blocks:
-                row, _ = textarea.cursor_location
-                blocks = [_find_transaction_block(lines, row)]
-        else:
-            row, _ = textarea.cursor_location
-            blocks = [_find_transaction_block(lines, row)]
-
-        new_block_texts: list[str] = []
-        for start_r, end_r in blocks:
-            block_lines = list(lines[start_r : end_r + 1])
-            m = _TXN_HEADER_RE.match(block_lines[0])
-            if m:
-                block_lines[0] = today + block_lines[0][len(m.group(1)):]
-            new_block_texts.append("\n".join(block_lines))
-
-        appended = "\n\n".join(new_block_texts)
-        current_text = textarea.text.rstrip("\n")
-        new_text = current_text + "\n\n" + appended + "\n"
-
-        # Use replace() instead of load_text() so the operation is recorded in the
-        # undo stack.  load_text() calls history.clear(), destroying prior undo
-        # history.  A single full-document replace() creates one undoable entry.
-        raw = textarea.text
-        parts = raw.split("\n")
-        doc_end = (len(parts) - 1, len(parts[-1]))
-        textarea.replace(new_text, (0, 0), doc_end)
-
-        first_new_start = len(current_text.splitlines()) + 1  # +1 for blank separator
-        textarea.move_cursor((first_new_start, 0))
 
     def action_prev_transaction(self) -> None:
         """Move cursor to the previous transaction header, or prev search match if bar open."""
@@ -817,47 +452,6 @@ class JournalEditor(Widget):
                 textarea.move_cursor((i, 0))
                 return
 
-    def action_select_transaction_block(self) -> None:
-        """Select the transaction block at the cursor; extend on each repeated press.
-
-        First press: selects the block containing the cursor.
-        Each subsequent press: if the current selection ends exactly at a
-        transaction block boundary, extends to include the next block.
-        """
-        from textual.document._document import Selection  # noqa: PLC0415
-
-        textarea = self.query_one("#journal_textarea", LedgerTextArea)
-        lines = textarea.text.splitlines()
-        if not lines:
-            return
-
-        sel = textarea.selection
-        sel_start_row = min(sel.start[0], sel.end[0])
-        sel_end_row = max(sel.start[0], sel.end[0])
-        sel_end_col = (
-            sel.start[1] if sel.start[0] > sel.end[0] else sel.end[1]
-        )
-
-        if sel_start_row < sel_end_row and sel_end_row < len(lines):
-            expected_end_col = len(lines[sel_end_row])
-            if sel_end_col == expected_end_col:
-                _, confirmed_block_end = _find_transaction_block(lines, sel_end_row)
-                if confirmed_block_end == sel_end_row:
-                    line_infos = textarea._highlighter._line_infos
-                    for i in range(sel_end_row + 1, len(line_infos)):
-                        if i < len(lines) and line_infos[i].kind == LineKind.XACT_HEADER:
-                            _, next_block_end = _find_transaction_block(lines, i)
-                            next_end_col = len(lines[next_block_end]) if next_block_end < len(lines) else 0
-                            textarea.selection = Selection(
-                                (sel_start_row, 0), (next_block_end, next_end_col)
-                            )
-                            return
-
-        row, _ = textarea.cursor_location
-        start_row, end_row = _find_transaction_block(lines, row)
-        end_col = len(lines[end_row]) if end_row < len(lines) else 0
-        textarea.selection = Selection((start_row, 0), (end_row, end_col))
-
     def action_cursor_to_start(self) -> None:
         """Move cursor to the very start of the file (Ctrl+Home)."""
         self.query_one("#journal_textarea", TextArea).move_cursor((0, 0))
@@ -873,72 +467,3 @@ class JournalEditor(Widget):
     def action_insert_today(self) -> None:
         """Insert today's date at the cursor position (Ctrl+D)."""
         self.query_one("#journal_textarea", TextArea).insert(_date.today().isoformat() + " ")
-
-    def action_date_shift_up(self) -> None:
-        """Shift the date sub-field under the cursor up by 1 (Shift+Up)."""
-        self._shift_date_by(+1)
-
-    def action_date_shift_down(self) -> None:
-        """Shift the date sub-field under the cursor down by 1 (Shift+Down)."""
-        self._shift_date_by(-1)
-
-    def _shift_date_by(self, delta: int) -> None:
-        """Shift the date sub-field under the cursor, or fall through to selection.
-
-        Handles two line kinds: a transaction header (date starts at column 0)
-        and a P price-directive (date starts after "P "). Either way, an
-        unpadded date (e.g. "2026-9-1") is normalised to zero-padded form
-        (e.g. "2026-09-01") as part of the same replace() — see
-        _normalize_date_str — so the very first Shift+Up/Down both expands
-        and shifts it.
-        """
-        textarea = self.query_one("#journal_textarea", LedgerTextArea)
-        row, col = textarea.cursor_location
-        line_infos = textarea._highlighter._line_infos
-
-        def _fallthrough() -> None:
-            if delta > 0:
-                textarea.action_cursor_up(select=True)
-            else:
-                textarea.action_cursor_down(select=True)
-
-        if row >= len(line_infos):
-            _fallthrough()
-            return
-
-        lines = textarea.text.splitlines()
-        line = lines[row] if row < len(lines) else ""
-        kind = line_infos[row].kind
-
-        date_str: str | None = None
-        date_start_col = 0
-        if kind == LineKind.XACT_HEADER:
-            m = _TXN_HEADER_RE.match(line)
-            if m:
-                date_str = m.group(1)
-                date_start_col = 0
-        elif kind == LineKind.DIRECTIVE:
-            m = _PRICE_DIRECTIVE_RE.match(line)
-            if m:
-                date_str = m.group(1)
-                date_start_col = m.start(1)
-
-        if date_str is None:
-            _fallthrough()
-            return
-
-        col_in_date = col - date_start_col
-        subfield = _date_subfield_at_col(date_str, col_in_date)
-        if subfield is None:
-            _fallthrough()
-            return
-
-        canonical_date_str = _normalize_date_str(date_str)
-        new_date_str = _shift_date_str(canonical_date_str, subfield, delta)
-        textarea.replace(
-            new_date_str,
-            (row, date_start_col),
-            (row, date_start_col + len(date_str)),
-        )
-        new_col = date_start_col + _DATE_FIELD_START[subfield]
-        textarea.move_cursor((row, new_col), select=False)

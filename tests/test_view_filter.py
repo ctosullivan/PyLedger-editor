@@ -208,6 +208,89 @@ class TestViewFilterBar:
             await pilot.pause()
             assert bar.current_mode == 0
 
+    async def test_filter_bar_shows_no_count_on_all_transactions(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            bar = editor.query_one(ViewFilterBar)
+            label = str(bar.query_one("#filter-label").content)
+            assert "/" not in label
+
+    async def test_filter_bar_shows_visible_over_total_count(
+        self, tmp_path: Path
+    ) -> None:
+        """THREE_TXN_JOURNAL: 2 of 3 transactions cleared."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            bar = editor.query_one(ViewFilterBar)
+
+            editor.action_cycle_view_filter()  # -> Cleared only
+            await pilot.pause()
+
+            label = str(bar.query_one("#filter-label").content)
+            assert "(2/3)" in label
+
+    async def test_filter_bar_count_updates_when_edits_add_a_transaction(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            bar = editor.query_one(ViewFilterBar)
+
+            editor.action_cycle_view_filter()  # -> Cleared only (2/3)
+            await pilot.pause()
+
+            # Add a new cleared transaction inside the filtered view.
+            textarea = editor.query_one("#journal_textarea", TextArea)
+            textarea.move_cursor((len(textarea.text.splitlines()), 0))
+            textarea.insert(
+                "\n2024-01-20 * New Cleared Txn\n"
+                "    assets:bank:checking    £5.00\n"
+                "    income:misc\n"
+            )
+            await pilot.pause()
+
+            editor.action_cycle_view_filter()  # -> Unreconciled (merges edits first)
+            editor.action_cycle_view_filter()  # -> All
+            editor.action_cycle_view_filter()  # -> back to Cleared only
+            await pilot.pause()
+
+            label = str(bar.query_one("#filter-label").content)
+            assert "(3/4)" in label
+
+    async def test_filter_bar_count_with_combined_filters(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            editor = pilot.app.query_one(JournalEditor)
+            bar = editor.query_one(ViewFilterBar)
+
+            editor.action_cycle_view_filter()  # -> Cleared only (2/3)
+            await pilot.pause()
+            predicate = lambda tx: tx.description == "Salary"  # noqa: E731
+            editor.apply_criteria_filter(predicate)
+            await pilot.pause()
+
+            label = str(bar.query_one("#filter-label").content)
+            assert "(1/3)" in label
+
 
 class TestViewFilterSave:
     """Tests that saving while filtered writes the full journal."""

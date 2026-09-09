@@ -6,11 +6,13 @@ import shutil
 
 from ledgerkit_editor.app import LedgerApp
 from ledgerkit_editor.widgets.ledger_textarea import LedgerTextArea
+from ledgerkit_editor.widgets.transaction_blocks import (
+    _cycle_flag_in_header,
+    _find_transaction_block,
+)
 from ledgerkit_editor.widgets.transaction_table import (
     JournalEditor,
-    _cycle_flag_in_header,
     _extract_account_from_line,
-    _find_transaction_block,
 )
 from textual.widgets import TextArea
 
@@ -834,3 +836,16 @@ class TestDateShiftAction:
             await pilot.pause()
 
             assert textarea.text == original_text
+
+
+# ---------------------------------------------------------------------------
+# Footer visibility — UAT: Ctrl+O (App-level) was scrolling off the
+# invisible-scrollbar Footer; Ctrl+S is hidden from it to make room.
+# ---------------------------------------------------------------------------
+
+
+class TestFooterVisibility:
+    def test_ctrl_s_binding_is_hidden(self) -> None:
+        matches = [b for b in JournalEditor.BINDINGS if b.key == "ctrl+s"]
+        assert matches, "expected a ctrl+s binding on JournalEditor"
+        assert matches[0].show is False
