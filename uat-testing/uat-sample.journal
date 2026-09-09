@@ -47,7 +47,7 @@ P 2026-9-1 EUR 1.08 USD
     expenses:misc    9.00 EUR
     assets:bank:checking
 
-2024-02-10 Filler transaction 10
+2024-02-10 * Filler transaction 10
     expenses:misc    10.00 EUR
     assets:bank:checking
 
@@ -103,7 +103,7 @@ account expenses:rent
 account income:salary
 payee Landlord
 
-2026-08-15 Landlord
+2026-08-15 * Landlord
     expenses:rent    750.00 EUR
     assets:bank:checking
 
