@@ -106,6 +106,10 @@ class LedgerApp(App[None]):
         self.journal_path = journal_path
         self._start_line = start_line
         self._theme_name = theme_name
+        # Captured from the popup's own fields just before it's removed
+        # (see action_toggle_filter) so a close/reopen (Ctrl+O twice)
+        # restores whatever was typed rather than starting blank again.
+        self._filter_field_values: dict[str, str] = {}
 
     def on_mount(self) -> None:
         """Register bundled themes, activate Monokai Pro, and populate file-path bar."""
@@ -161,12 +165,21 @@ class LedgerApp(App[None]):
         self.notify("Filter cleared", severity="information")
 
     def action_toggle_filter(self) -> None:
-        """Open or close the transaction filter popup (Ctrl+O)."""
+        """Open or close the transaction filter popup (Ctrl+O).
+
+        Closing saves the popup's current field text to
+        _filter_field_values first, so the next open restores it —
+        closing the popup only dismisses it, it was never meant to
+        discard in-progress typing (an applied filter already survives
+        this the same way, via JournalEditor's own state).
+        """
         existing = self.query(FilterPopup)
         if existing:
-            existing.first().remove()
+            popup = existing.first()
+            self._filter_field_values = popup.field_values()
+            popup.remove()
         else:
-            self.mount(FilterPopup())
+            self.mount(FilterPopup(initial_values=self._filter_field_values))
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
