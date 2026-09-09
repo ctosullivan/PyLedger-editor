@@ -224,9 +224,22 @@ class ViewFilterMixin:
 
     def _update_filter_bar(self) -> None:
         """Refresh the ViewFilterBar label to describe whichever
-        dimension(s) are currently active, combined."""
+        dimension(s) are currently active, combined, plus a
+        visible/total transaction count while a filter is active."""
         try:
             bar = self.query_one(ViewFilterBar)
         except Exception:  # noqa: BLE001
             return
-        bar.set_combined(self._view_filter_mode, self._active_predicate is not None)
+
+        visible_count: int | None = None
+        total_count: int | None = None
+        if self._filter_is_active and self._filter_journal is not None:
+            total_count = len(self._filter_journal.transactions)  # type: ignore[union-attr]
+            visible_count = len(self._filter_visible_indices)
+
+        bar.set_combined(
+            self._view_filter_mode,
+            self._active_predicate is not None,
+            visible_count,
+            total_count,
+        )

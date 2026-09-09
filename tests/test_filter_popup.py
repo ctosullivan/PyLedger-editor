@@ -3,8 +3,8 @@
 Covers the criteria-filter path end-to-end: FilterPopup builds and posts a
 validated predicate; LedgerApp (not JournalEditor — FilterPopup is a
 sibling, not a child, see app.py's on_filter_popup_filter_applied) relays it
-to JournalEditor.apply_criteria_filter(). Mutual exclusivity with Ctrl+L is
-also covered here since it lives in the same engine (view_filter.py).
+to JournalEditor.apply_criteria_filter(). Combining with Ctrl+L (they share
+view_filter.py's engine) is also covered here, in TestFilterCombination.
 """
 from pathlib import Path
 
@@ -426,6 +426,116 @@ class TestFilterCombination:
             label = str(bar.query_one("#filter-label").content)
             assert "Cleared only" in label
             assert "Ctrl+O" in label
+
+
+class TestFilterPopupAutocomplete:
+    """Tab in the Account/Payee fields completes against JournalEditor's
+    account/payee index — the same bash-style cycling convention as the
+    main editor's Tab autocomplete (FilterPopup.action_complete_field)."""
+
+    async def test_tab_completes_account_field(self, tmp_path: Path) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            account_field = popup.query_one("#account", Input)
+            account_field.value = "expenses:"
+            account_field.focus()
+            await pilot.pause()
+
+            await pilot.press("tab")
+            await pilot.pause()
+
+            # Shortest match, alphabetical tiebreak: "expenses:food" before
+            # "expenses:rent" (both 13 chars).
+            assert account_field.value == "expenses:food"
+
+    async def test_tab_again_cycles_account_candidate(self, tmp_path: Path) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            account_field = popup.query_one("#account", Input)
+            account_field.value = "expenses:"
+            account_field.focus()
+            await pilot.pause()
+
+            await pilot.press("tab")
+            await pilot.pause()
+            first = account_field.value
+
+            await pilot.press("tab")
+            await pilot.pause()
+            second = account_field.value
+
+            assert second != first
+            assert second in ("expenses:food", "expenses:rent")
+
+    async def test_tab_completes_payee_field(self, tmp_path: Path) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            payee_field = popup.query_one("#payee", Input)
+            payee_field.value = "Groc"
+            payee_field.focus()
+            await pilot.pause()
+
+            await pilot.press("tab")
+            await pilot.pause()
+
+            assert payee_field.value == "Groceries"
+
+    async def test_tab_with_no_match_falls_through(self, tmp_path: Path) -> None:
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            account_field = popup.query_one("#account", Input)
+            account_field.value = "zzz_no_such_account"
+            account_field.focus()
+            await pilot.pause()
+
+            await pilot.press("tab")
+            await pilot.pause()
+
+            assert account_field.value == "zzz_no_such_account"
+
+    async def test_tab_on_date_field_does_not_complete(self, tmp_path: Path) -> None:
+        """Only Account/Payee complete; Date fields fall through untouched."""
+        journal = tmp_path / "test.journal"
+        journal.write_text(THREE_TXN_JOURNAL, encoding="utf-8")
+
+        app = LedgerApp(journal)
+        async with app.run_test(size=(120, 30)) as pilot:
+            app.action_toggle_filter()
+            await pilot.pause()
+            popup = app.query_one(FilterPopup)
+            date_field = popup.query_one("#date-from", Input)
+            date_field.value = "2024"
+            date_field.focus()
+            await pilot.pause()
+
+            await pilot.press("tab")
+            await pilot.pause()
+
+            assert date_field.value == "2024"
 
 
 class TestFilterAppMessageWiring:

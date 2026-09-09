@@ -39,18 +39,19 @@ The view filter changes what the editor shows without hiding any data from disk:
 |----------|--------|
 | `Ctrl+O` | Open / close the filter popup. Closing it (a second `Ctrl+O`, or `Escape`) leaves any already-applied filter active — it only dismisses the popup, not the filter. |
 | `Enter` (in any field) | Apply the filter — same as clicking **Apply** |
+| `Tab` (in the Account or Payee field) | Complete the field's value against known account/payee names — press again to cycle to the next match. See [Tab Autocomplete](#tab-autocomplete) below; this is the same convention, just applied to a whole field's value instead of a partial token within a line. `Tab` in the Date fields is unaffected (ordinary focus-cycling). |
 
 The popup has four fields, all optional — leave any blank to not filter on that dimension:
 
 - **Date from / Date to** — smart dates: ISO 8601 (`2024-01-15`), named periods (`today`, `yesterday`, `last month`, `last year`, `ytd`), quarters (`q1`–`q4`, current year), or a relative offset (`-7d`, `+2w`, `-1m`, `+1y`). A named period typed into **just one** of the two fields (the other left blank) is bounded to that whole period automatically — e.g. Date From = `last month` alone filters to last month only (1st through its last day), not "from the 1st of last month onward" including everything since. `ytd` is bounded by today, not December 31st. Filling in both fields explicitly always wins over the auto-fill. A plain ISO date or a relative offset (`-7d`) used alone stays open-ended, since those are single points in time rather than spans with a natural other end.
-- **Account** — matches if *any* posting in the transaction matches. A plain string is a case-insensitive substring match; a string containing any regex metacharacter (`. ^ $ * + ? ( ) [ ] { } | \`) is compiled and matched as a Python regex instead (case-insensitive) — e.g. `^expenses:food` matches only accounts starting with that prefix, `food|rent` matches either. This is the same substring-or-regex convention hledger itself uses.
-- **Payee** — same substring-or-regex convention, matched against the transaction description.
+- **Account** — matches if *any* posting in the transaction matches. A plain string is a case-insensitive substring match; a string containing any regex metacharacter (`. ^ $ * + ? ( ) [ ] { } | \`) is compiled and matched as a Python regex instead (case-insensitive) — e.g. `^expenses:food` matches only accounts starting with that prefix, `food|rent` matches either. This is the same substring-or-regex convention hledger itself uses. `Tab` completes/cycles known account names (see above).
+- **Payee** — same substring-or-regex convention, matched against the transaction description. `Tab` completes/cycles known payee names.
 
 **Apply** builds the filter and shows only matching transactions, using the same show/edit/merge-back engine as `Ctrl+L` — edits made while filtered are merged back into the full journal when you clear the filter, switch to `Ctrl+L`, or save. An invalid date string or regex is rejected with a notification and the previous view is left unchanged. Applying with **every field blank** is treated as "no filter" (same as Clear) rather than a "match everything" filter — it's a true no-op and won't reformat the document or mark it modified.
 
 **Clear** restores the full journal and empties the popup's own input fields.
 
-`Ctrl+O`'s criteria filter and `Ctrl+L`'s cleared/uncleared cycle **combine** — active together, they narrow the view to transactions matching *both* (e.g. "Cleared only" + an account filter shows only cleared transactions in that account), not just whichever was applied most recently. Either can be adjusted or cleared independently of the other: clearing the `Ctrl+O` filter leaves any active `Ctrl+L` mode in place, and cycling `Ctrl+L` back to All leaves an active `Ctrl+O` filter in place. The status bar at the top of the editor describes whichever combination is currently active (e.g. "View: Cleared only + Filtered (Ctrl+O)").
+`Ctrl+O`'s criteria filter and `Ctrl+L`'s cleared/uncleared cycle **combine** — active together, they narrow the view to transactions matching *both* (e.g. "Cleared only" + an account filter shows only cleared transactions in that account), not just whichever was applied most recently. Either can be adjusted or cleared independently of the other: clearing the `Ctrl+O` filter leaves any active `Ctrl+L` mode in place, and cycling `Ctrl+L` back to All leaves an active `Ctrl+O` filter in place. The status bar at the top of the editor describes whichever combination is currently active, together with a **visible/total transaction count** whenever any filter is active (e.g. "View: Cleared only + Filtered (Ctrl+O) (2/17)") — no count is shown for "All transactions", since it's redundant there.
 
 ## Cleared / Status Toggle
 
@@ -66,12 +67,13 @@ The popup has four fields, all optional — leave any blank to not filter on tha
 | `Escape` | Dismiss the suggestion bar, if showing (checked before search-bar dismissal / unfocus — see the Search section). |
 | `Shift+Tab` | Reverse focus-cycle (unaffected by autocomplete). |
 
-Works in two places:
+Works in three places:
 
 - **Posting line, while typing the account name** (before the amount) — suggests from every account declared with an `account` directive plus every account actually used on a posting anywhere in the journal.
 - **Transaction header, at or past the payee/description field** (after the date and any `*`/`!`/`(CODE)`) — suggests from every declared `payee` directive plus every transaction description in the journal.
+- **The Ctrl+O filter popup's Account and Payee fields** — same account/payee lists as above, applied to the whole field's value rather than a token within a line (no suggestion bar there; the field's text just updates in place on each `Tab`). See [Transaction Filter (Ctrl+O)](#transaction-filter-ctrlo).
 
-Suggestions come from a snapshot index rebuilt on file load and after each `Ctrl+S` save — not on every keystroke, so text you've typed but not yet saved won't complete against itself until you save. The first match is inserted immediately; the suggestion bar at the bottom of the editor shows the full candidate list and highlights the current one. This intentionally cycles like shell tab-completion (press `Tab` repeatedly to step through matches) rather than a `Up`/`Down`-navigable dropdown — `Up`/`Down` stay ordinary cursor-movement keys everywhere in the editor, including while the search bar has focus.
+Suggestions come from a snapshot index rebuilt on file load and after each `Ctrl+S` save — not on every keystroke, so text you've typed but not yet saved won't complete against itself until you save. The first match is inserted immediately; in the main editor, a suggestion bar at the bottom shows the full candidate list and highlights the current one (the filter popup's fields don't have room for that, so there it's just the field's value cycling with no visible list). This intentionally cycles like shell tab-completion (press `Tab` repeatedly to step through matches) rather than a `Up`/`Down`-navigable dropdown — `Up`/`Down` stay ordinary cursor-movement keys everywhere in the editor, including while the search bar has focus.
 
 ## Transaction Block Selection & Navigation
 

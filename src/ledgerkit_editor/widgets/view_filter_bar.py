@@ -52,7 +52,13 @@ class ViewFilterBar(Widget):
         filter, which isn't one of the three fixed Ctrl+L modes."""
         self.query_one("#filter-label", Static).update(text)
 
-    def set_combined(self, mode: int, criteria_active: bool) -> None:
+    def set_combined(
+        self,
+        mode: int,
+        criteria_active: bool,
+        visible_count: int | None = None,
+        total_count: int | None = None,
+    ) -> None:
         """Update for the current Ctrl+L mode AND whether a Ctrl+O criteria
         filter is also active, composing one label describing both.
 
@@ -60,6 +66,13 @@ class ViewFilterBar(Widget):
         exclusive — this is the label update JournalEditor calls after any
         change to either dimension, so the two never show a stale or
         one-sided description of what's actually filtering the view.
+
+        Args:
+            visible_count / total_count: when both given (only meaningful
+                while a filter is actually active — mode != 0 or
+                criteria_active), appends "(visible/total)" so the user can
+                see how much of the journal a filter is actually excluding
+                without counting rows by hand.
         """
         self.current_mode = mode
         base = _LABELS.get(mode, _LABELS[0])
@@ -69,4 +82,6 @@ class ViewFilterBar(Widget):
             label = "View: Filtered (Ctrl+O)"
         else:
             label = f"{base} + Filtered (Ctrl+O)"
+        if visible_count is not None and total_count is not None:
+            label = f"{label} ({visible_count}/{total_count})"
         self.query_one("#filter-label", Static).update(label)

@@ -503,10 +503,17 @@ class ViewFilterBar(Widget):
         """Update the label for a fixed Ctrl+L mode (0=All, 1=Cleared, 2=Unreconciled)."""
     def set_label(self, text: str) -> None:
         """Set an arbitrary label directly."""
-    def set_combined(self, mode: int, criteria_active: bool) -> None:
-        """Compose one label from both the Ctrl+L mode and whether Ctrl+O
-        is also active — what ViewFilterMixin actually calls after any
-        change to either dimension."""
+    def set_combined(
+        self,
+        mode: int,
+        criteria_active: bool,
+        visible_count: int | None = None,
+        total_count: int | None = None,
+    ) -> None:
+        """Compose one label from the Ctrl+L mode, whether Ctrl+O is also
+        active, and (when both counts given) a "(visible/total)" suffix —
+        what ViewFilterMixin actually calls after any change to either
+        filter dimension."""
 ```
 
 ### `AutocompletePopup` (`widgets/autocomplete_popup.py`)
@@ -546,6 +553,15 @@ class FilterPopup(Widget):
     def apply_filter(self) -> None:
         """Read field values, build+validate a predicate, post FilterApplied.
         Empty fields become None (no filter on that dimension)."""
+
+    def action_complete_field(self) -> None:
+        """Tab: complete the focused Account/Payee Input's whole value
+        against JournalEditor._journal_index (read live via
+        self.app.query_one), cycling to the next match on repeated presses.
+        Falls through to ordinary focus-cycling for any other focused
+        field, or when there's no match — same convention as
+        AutocompleteMixin.action_autocomplete, applied to a single-line
+        Input's entire value instead of a token within a larger line."""
 ```
 
 ---

@@ -52,7 +52,9 @@ src/ledgerkit_editor/
 │   │                            cleared without disturbing the other
 │   ├── view_filter_bar.py     — ViewFilterBar: 1-row status bar describing
 │   │                            whichever of Ctrl+L/Ctrl+O (or both,
-│   │                            combined — set_combined()) is active
+│   │                            combined — set_combined()) is active, plus
+│   │                            a visible/total transaction count whenever
+│   │                            a filter is active
 │   ├── ledger_textarea.py     — LedgerTextArea: TextArea subclass wiring in
 │   │                            LedgerHighlighter syntax highlighting and
 │   │                            search-match highlighting
@@ -65,7 +67,15 @@ src/ledgerkit_editor/
 │                                 FilterCleared — handled by LedgerApp
 │                                 (app.py), not JournalEditor, since
 │                                 FilterPopup is a sibling in the DOM, not a
-│                                 child (messages bubble to the App)
+│                                 child (messages bubble to the App). Also
+│                                 has its own Tab-autocomplete
+│                                 (action_complete_field) for the Account/
+│                                 Payee fields, reading JournalEditor's
+│                                 _journal_index live via self.app.query_one
+│                                 — a simpler, single-field variant of
+│                                 AutocompleteMixin's convention (no
+│                                 suggestion bar; the field's value just
+│                                 cycles in place on repeated Tab)
 ├── highlighting/
 │   ├── highlighter.py         — LedgerHighlighter: pure-Python, no-Textual-
 │   │                            imports regex-based syntax highlighter
